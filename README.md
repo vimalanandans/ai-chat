@@ -43,3 +43,7 @@ npm run dev
 ```
 
 Run checks with `npm run lint`, `npm run test`, and `npm run build -- --webpack`.
+
+## Documentation
+
+See the [documentation index](docs/README.md) for the user guide, architecture, local API reference, and operations notes. Run `npm run docs:check` to validate the documentation set.
