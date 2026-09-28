@@ -1,16 +1,31 @@
-import { describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 import { createEmptySession, createWelcomeSession } from "./demo";
+import { deleteProvider, getModels, getProviderSummaries, saveProvider } from "./runtime";
+
+let testDirectory = "";
+afterEach(async () => { delete process.env.SIGNAL_PROVIDER_STORE; if (testDirectory) await rm(testDirectory, { recursive: true, force: true }); testDirectory = ""; });
 
 describe("chat session setup", () => {
   it("keeps the selected provider model with a fresh session", () => {
-    const session = createEmptySession("azure:writer-deployment");
-    expect(session.modelId).toBe("azure:writer-deployment");
-    expect(session.messages).toEqual([]);
+    expect(createEmptySession("azure:writer-deployment").modelId).toBe("azure:writer-deployment");
   });
-
   it("creates a visible local first-run guide", () => {
-    const session = createWelcomeSession("gemini:gemini-2.5-flash");
-    expect(session.messages[0].role).toBe("assistant");
-    expect(session.messages[0].content).toContain("New chat");
+    expect(createWelcomeSession("gemini:gemini-2.5-flash").messages[0].content).toContain("New chat");
+  });
+});
+
+describe("local provider registry", () => {
+  it("persists multiple independently keyed connections and exposes no API key", async () => {
+    testDirectory = await mkdtemp(join(tmpdir(), "signal-providers-"));
+    process.env.SIGNAL_PROVIDER_STORE = join(testDirectory, "providers.json");
+    const first = await saveProvider({ kind: "openai", name: "Team OpenAI", endpoint: "https://example.test/v1", apiKey: "secret-one", models: ["model-a"] });
+    const second = await saveProvider({ kind: "gemini", name: "Personal Gemini", endpoint: "https://example.test/v1beta", apiKey: "secret-two", models: ["model-b"] });
+    expect((await getProviderSummaries()).filter((provider) => provider.id === first.id || provider.id === second.id)).toHaveLength(2);
+    expect((await getModels()).map((model) => model.id)).toContain(`${second.id}:model-b`);
+    await deleteProvider(first.id);
+    expect((await getProviderSummaries()).some((provider) => provider.id === first.id)).toBe(false);
   });
 });

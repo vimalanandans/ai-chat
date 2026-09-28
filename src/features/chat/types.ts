@@ -26,7 +26,7 @@ export interface ModelOption {
   configured: boolean;
 }
 
-export type ProviderKind = "openai" | "azure-openai" | "gemini";
+export type ProviderKind = "openai" | "openai-responses" | "azure-openai" | "gemini" | "anthropic";
 
 export interface ProviderSummary {
   id: string;

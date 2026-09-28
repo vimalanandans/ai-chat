@@ -5,8 +5,8 @@ import type { ModelOption, ProviderKind, ProviderSummary } from "./types";
 
 type ProviderRecord = ProviderSummary & { apiKey: string };
 type ProviderInput = Partial<ProviderRecord> & { models?: string[] };
-const providerFile = join(process.cwd(), "data", "providers.json");
-const supportedKinds = new Set<ProviderKind>(["openai", "azure-openai", "gemini"]);
+const supportedKinds = new Set<ProviderKind>(["openai", "openai-responses", "azure-openai", "gemini", "anthropic"]);
+function providerFile() { return process.env.SIGNAL_PROVIDER_STORE || join(process.cwd(), "data", "providers.json"); }
 
 function cleanModels(models: unknown): string[] { return Array.isArray(models) ? [...new Set(models.filter((model): model is string => typeof model === "string").map((model) => model.trim()).filter(Boolean))] : []; }
 function environmentProvider(): ProviderRecord | undefined {
@@ -15,7 +15,7 @@ function environmentProvider(): ProviderRecord | undefined {
 }
 async function localProviders(): Promise<ProviderRecord[]> {
   try {
-    const parsed = JSON.parse(await readFile(providerFile, "utf8")) as unknown;
+    const parsed = JSON.parse(await readFile(providerFile(), "utf8")) as unknown;
     if (!Array.isArray(parsed)) return [];
     return parsed.filter((item): item is ProviderRecord => typeof item === "object" && item !== null && typeof (item as ProviderRecord).id === "string" && typeof (item as ProviderRecord).apiKey === "string").map((item) => ({ ...item, models: cleanModels(item.models), configured: Boolean(item.apiKey && item.endpoint) }));
   } catch { return []; }
@@ -36,12 +36,27 @@ export async function saveProvider(input: ProviderInput): Promise<ProviderSummar
   const current = await localProviders(); const existing = input.id ? current.find((provider) => provider.id === input.id) : undefined; const apiKey = typeof input.apiKey === "string" && input.apiKey.trim() ? input.apiKey.trim() : existing?.apiKey;
   if (!apiKey) throw new Error("An API key is required for a new provider.");
   const record: ProviderRecord = { id: existing?.id || randomUUID(), name, kind, endpoint, models, apiVersion: typeof input.apiVersion === "string" ? input.apiVersion.trim() || undefined : undefined, apiKey, configured: true };
-  const next = existing ? current.map((provider) => provider.id === existing.id ? record : provider) : [...current, record]; await mkdir(join(process.cwd(), "data"), { recursive: true }); const temporaryFile = `${providerFile}.${randomUUID()}.tmp`;
-  await writeFile(temporaryFile, JSON.stringify(next, null, 2), { mode: 0o600 }); await rename(temporaryFile, providerFile); const { apiKey: _, ...summary } = record; return summary;
+  const next = existing ? current.map((provider) => provider.id === existing.id ? record : provider) : [...current, record]; const path = providerFile(); await mkdir(join(path, ".."), { recursive: true }); const temporaryFile = `${path}.${randomUUID()}.tmp`;
+  await writeFile(temporaryFile, JSON.stringify(next, null, 2), { mode: 0o600 }); await rename(temporaryFile, path); const { apiKey: _, ...summary } = record; return summary;
 }
 export async function deleteProvider(id: string): Promise<void> {
   if (id === "environment") throw new Error("Environment-managed providers are configured through .env.local.");
   const current = await localProviders(); const next = current.filter((provider) => provider.id !== id); if (next.length === current.length) throw new Error("Provider not found.");
-  if (!next.length) { await unlink(providerFile).catch(() => undefined); return; }
-  const temporaryFile = `${providerFile}.${randomUUID()}.tmp`; await writeFile(temporaryFile, JSON.stringify(next, null, 2), { mode: 0o600 }); await rename(temporaryFile, providerFile);
+  const path = providerFile(); if (!next.length) { await unlink(path).catch(() => undefined); return; }
+  const temporaryFile = `${path}.${randomUUID()}.tmp`; await writeFile(temporaryFile, JSON.stringify(next, null, 2), { mode: 0o600 }); await rename(temporaryFile, path);
+}
+
+export async function testProvider(input: ProviderInput): Promise<string> {
+  const saved = input.id ? (await getProviders()).find((provider) => provider.id === input.id) : undefined;
+  const kind = input.kind || saved?.kind; const endpoint = (typeof input.endpoint === "string" ? input.endpoint : saved?.endpoint || "").trim().replace(/\/$/, "");
+  const apiKey = (typeof input.apiKey === "string" && input.apiKey.trim() ? input.apiKey : saved?.apiKey || "").trim(); const models = cleanModels(input.models?.length ? input.models : saved?.models); const model = models[0];
+  if (!kind || !supportedKinds.has(kind) || !endpoint || !apiKey || !model) throw new Error("Enter a provider type, endpoint, API key, and at least one model before testing.");
+  let response: Response;
+  if (kind === "gemini") response = await fetch(`${endpoint}/models/${encodeURIComponent(model)}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Reply with OK." }] }] }) });
+  else if (kind === "anthropic") response = await fetch(`${endpoint}/messages`, { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model, max_tokens: 4, messages: [{ role: "user", content: "Reply with OK." }] }) });
+  else if (kind === "openai-responses") response = await fetch(`${endpoint}/responses`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, input: "Reply with OK.", max_output_tokens: 4 }) });
+  else if (kind === "azure-openai") response = await fetch(`${endpoint}/openai/deployments/${encodeURIComponent(model)}/chat/completions?api-version=${encodeURIComponent(input.apiVersion || saved?.apiVersion || "2024-10-21")}`, { method: "POST", headers: { "Content-Type": "application/json", "api-key": apiKey }, body: JSON.stringify({ messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 4 }) });
+  else response = await fetch(`${endpoint}/chat/completions`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 4 }) });
+  if (!response.ok) { const detail = (await response.text()).replace(/\s+/g, " ").slice(0, 240); throw new Error(`Connection test failed (${response.status}): ${detail || response.statusText}`); }
+  return `Connected to ${model} through ${saved?.name || input.name || "this provider"}.`;
 }
