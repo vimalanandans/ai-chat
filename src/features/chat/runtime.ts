@@ -1,14 +1,26 @@
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { ModelOption, ProviderKind, ProviderSummary } from "./types";
+import { ProxyAgent, fetch as undiciFetch } from "undici";
+import type { ModelOption, ProviderKind, ProviderSummary, ProxySettings } from "./types";
 
 type ProviderRecord = ProviderSummary & { apiKey: string };
 type ProviderInput = Partial<ProviderRecord> & { models?: string[] };
+type ProxyInput = Partial<ProxySettings>;
 const supportedKinds = new Set<ProviderKind>(["openai", "openai-responses", "azure-openai", "gemini", "anthropic"]);
 function providerFile() { return process.env.SIGNAL_PROVIDER_STORE || join(process.cwd(), "data", "providers.json"); }
+function proxyFile() { return process.env.SIGNAL_PROXY_STORE || join(process.cwd(), "data", "proxy.json"); }
+let proxyAgent: { endpoint: string; agent: ProxyAgent } | undefined;
 
 function cleanModels(models: unknown): string[] { return Array.isArray(models) ? [...new Set(models.filter((model): model is string => typeof model === "string").map((model) => model.trim()).filter(Boolean))] : []; }
+function cleanProxyEndpoint(endpoint: unknown): string {
+  const value = typeof endpoint === "string" ? endpoint.trim().replace(/\/$/, "") : "";
+  if (!value) return "";
+  if (!URL.canParse(value)) throw new Error("Enter a valid proxy URL, for example http://localhost:3128.");
+  const protocol = new URL(value).protocol;
+  if (protocol !== "http:" && protocol !== "https:") throw new Error("The proxy URL must use http:// or https://.");
+  return value;
+}
 function environmentProvider(): ProviderRecord | undefined {
   if (!process.env.LLM_BASE_URL || !process.env.LLM_API_KEY) return undefined;
   return { id: "environment", name: process.env.LLM_PROVIDER_NAME || "Environment connection", kind: "openai", endpoint: process.env.LLM_BASE_URL, apiKey: process.env.LLM_API_KEY, models: cleanModels((process.env.LLM_MODELS || process.env.LLM_MODEL || "gpt-4.1-mini").split(",")), configured: true };
@@ -21,6 +33,34 @@ async function localProviders(): Promise<ProviderRecord[]> {
   } catch { return []; }
 }
 export async function getProviders(): Promise<ProviderRecord[]> { const environment = environmentProvider(); return [...(environment ? [environment] : []), ...await localProviders()]; }
+export async function getProxySettings(): Promise<ProxySettings> {
+  try {
+    const parsed = JSON.parse(await readFile(proxyFile(), "utf8")) as Partial<ProxySettings>;
+    return { enabled: Boolean(parsed.enabled), endpoint: cleanProxyEndpoint(parsed.endpoint) };
+  } catch { return { enabled: false, endpoint: "" }; }
+}
+export async function saveProxySettings(input: ProxyInput): Promise<ProxySettings> {
+  const endpoint = cleanProxyEndpoint(input.endpoint);
+  const settings = { enabled: Boolean(input.enabled), endpoint };
+  if (settings.enabled && !endpoint) throw new Error("A proxy URL is required when the application proxy is enabled.");
+  const path = proxyFile(); await mkdir(dirname(path), { recursive: true }); const temporaryFile = `${path}.${randomUUID()}.tmp`;
+  await writeFile(temporaryFile, JSON.stringify(settings, null, 2), { mode: 0o600 }); await rename(temporaryFile, path);
+  return settings;
+}
+export async function providerFetch(input: string, init: Parameters<typeof undiciFetch>[1]) {
+  const settings = await getProxySettings();
+  if (!settings.enabled) return undiciFetch(input, init);
+  if (!proxyAgent || proxyAgent.endpoint !== settings.endpoint) proxyAgent = { endpoint: settings.endpoint, agent: new ProxyAgent(settings.endpoint) };
+  return undiciFetch(input, { ...init, dispatcher: proxyAgent.agent });
+}
+export async function testProxy(input?: ProxyInput): Promise<string> {
+  const settings = input ? { enabled: Boolean(input.enabled), endpoint: cleanProxyEndpoint(input.endpoint) } : await getProxySettings();
+  if (!settings.enabled || !settings.endpoint) throw new Error("Enable the application proxy and enter its URL before testing.");
+  const agent = proxyAgent?.endpoint === settings.endpoint ? proxyAgent.agent : new ProxyAgent(settings.endpoint);
+  const response = await undiciFetch("https://www.gstatic.com/generate_204", { dispatcher: agent, signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) throw new Error(`Proxy test failed (${response.status}): ${response.statusText || "The proxy rejected the request."}`);
+  return `Proxy connected through ${settings.endpoint}.`;
+}
 export async function getProviderSummaries(): Promise<ProviderSummary[]> { return (await getProviders()).map(({ apiKey: _, ...provider }) => provider); }
 export async function getModels(): Promise<ModelOption[]> { return (await getProviders()).flatMap((provider) => provider.models.map((model) => ({ id: `${provider.id}:${model}`, label: model, provider: provider.name, providerId: provider.id, configured: provider.configured }))); }
 export async function findModel(modelId: string): Promise<{ provider: ProviderRecord; model: string } | undefined> {
@@ -36,7 +76,7 @@ export async function saveProvider(input: ProviderInput): Promise<ProviderSummar
   const current = await localProviders(); const existing = input.id ? current.find((provider) => provider.id === input.id) : undefined; const apiKey = typeof input.apiKey === "string" && input.apiKey.trim() ? input.apiKey.trim() : existing?.apiKey;
   if (!apiKey) throw new Error("An API key is required for a new provider.");
   const record: ProviderRecord = { id: existing?.id || randomUUID(), name, kind, endpoint, models, apiVersion: typeof input.apiVersion === "string" ? input.apiVersion.trim() || undefined : undefined, apiKey, configured: true };
-  const next = existing ? current.map((provider) => provider.id === existing.id ? record : provider) : [...current, record]; const path = providerFile(); await mkdir(join(path, ".."), { recursive: true }); const temporaryFile = `${path}.${randomUUID()}.tmp`;
+  const next = existing ? current.map((provider) => provider.id === existing.id ? record : provider) : [...current, record]; const path = providerFile(); await mkdir(dirname(path), { recursive: true }); const temporaryFile = `${path}.${randomUUID()}.tmp`;
   await writeFile(temporaryFile, JSON.stringify(next, null, 2), { mode: 0o600 }); await rename(temporaryFile, path); const { apiKey: _, ...summary } = record; return summary;
 }
 export async function deleteProvider(id: string): Promise<void> {
@@ -51,12 +91,12 @@ export async function testProvider(input: ProviderInput): Promise<string> {
   const kind = input.kind || saved?.kind; const endpoint = (typeof input.endpoint === "string" ? input.endpoint : saved?.endpoint || "").trim().replace(/\/$/, "");
   const apiKey = (typeof input.apiKey === "string" && input.apiKey.trim() ? input.apiKey : saved?.apiKey || "").trim(); const models = cleanModels(input.models?.length ? input.models : saved?.models); const model = models[0];
   if (!kind || !supportedKinds.has(kind) || !endpoint || !apiKey || !model) throw new Error("Enter a provider type, endpoint, API key, and at least one model before testing.");
-  let response: Response;
-  if (kind === "gemini") response = await fetch(`${endpoint}/models/${encodeURIComponent(model)}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Reply with OK." }] }] }) });
-  else if (kind === "anthropic") response = await fetch(`${endpoint}/messages`, { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model, max_tokens: 4, messages: [{ role: "user", content: "Reply with OK." }] }) });
-  else if (kind === "openai-responses") response = await fetch(`${endpoint}/responses`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, input: "Reply with OK.", max_output_tokens: 4 }) });
-  else if (kind === "azure-openai") response = await fetch(`${endpoint}/openai/deployments/${encodeURIComponent(model)}/chat/completions?api-version=${encodeURIComponent(input.apiVersion || saved?.apiVersion || "2024-10-21")}`, { method: "POST", headers: { "Content-Type": "application/json", "api-key": apiKey }, body: JSON.stringify({ messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 4 }) });
-  else response = await fetch(`${endpoint}/chat/completions`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 4 }) });
+  let response: Awaited<ReturnType<typeof providerFetch>>;
+  if (kind === "gemini") response = await providerFetch(`${endpoint}/models/${encodeURIComponent(model)}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Reply with OK." }] }] }) });
+  else if (kind === "anthropic") response = await providerFetch(`${endpoint}/messages`, { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model, max_tokens: 4, messages: [{ role: "user", content: "Reply with OK." }] }) });
+  else if (kind === "openai-responses") response = await providerFetch(`${endpoint}/responses`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, input: "Reply with OK.", max_output_tokens: 4 }) });
+  else if (kind === "azure-openai") response = await providerFetch(`${endpoint}/openai/deployments/${encodeURIComponent(model)}/chat/completions?api-version=${encodeURIComponent(input.apiVersion || saved?.apiVersion || "2024-10-21")}`, { method: "POST", headers: { "Content-Type": "application/json", "api-key": apiKey }, body: JSON.stringify({ messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 4 }) });
+  else response = await providerFetch(`${endpoint}/chat/completions`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 4 }) });
   if (!response.ok) { const detail = (await response.text()).replace(/\s+/g, " ").slice(0, 240); throw new Error(`Connection test failed (${response.status}): ${detail || response.statusText}`); }
   return `Connected to ${model} through ${saved?.name || input.name || "this provider"}.`;
 }

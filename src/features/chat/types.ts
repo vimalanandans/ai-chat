@@ -38,6 +38,11 @@ export interface ProviderSummary {
   configured: boolean;
 }
 
+export interface ProxySettings {
+  enabled: boolean;
+  endpoint: string;
+}
+
 export interface ChatStore {
   version: 1;
   sessions: ChatSession[];

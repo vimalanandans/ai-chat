@@ -3,10 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createEmptySession, createWelcomeSession } from "./demo";
-import { deleteProvider, getModels, getProviderSummaries, saveProvider } from "./runtime";
+import { deleteProvider, getModels, getProviderSummaries, getProxySettings, saveProvider, saveProxySettings } from "./runtime";
 
 let testDirectory = "";
-afterEach(async () => { delete process.env.SIGNAL_PROVIDER_STORE; if (testDirectory) await rm(testDirectory, { recursive: true, force: true }); testDirectory = ""; });
+afterEach(async () => { delete process.env.SIGNAL_PROVIDER_STORE; delete process.env.SIGNAL_PROXY_STORE; if (testDirectory) await rm(testDirectory, { recursive: true, force: true }); testDirectory = ""; });
 
 describe("chat session setup", () => {
   it("keeps the selected provider model with a fresh session", () => {
@@ -27,5 +27,14 @@ describe("local provider registry", () => {
     expect((await getModels()).map((model) => model.id)).toContain(`${second.id}:model-b`);
     await deleteProvider(first.id);
     expect((await getProviderSummaries()).some((provider) => provider.id === first.id)).toBe(false);
+  });
+});
+
+describe("outbound proxy settings", () => {
+  it("persists a local application proxy independently of provider keys", async () => {
+    testDirectory = await mkdtemp(join(tmpdir(), "signal-proxy-"));
+    process.env.SIGNAL_PROXY_STORE = join(testDirectory, "proxy.json");
+    await saveProxySettings({ enabled: true, endpoint: "http://localhost:3128/" });
+    await expect(getProxySettings()).resolves.toEqual({ enabled: true, endpoint: "http://localhost:3128" });
   });
 });

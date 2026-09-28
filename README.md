@@ -14,6 +14,12 @@ Open **Model connection** in the chat sidebar and add any combination of:
 
 Each provider can expose multiple models. Select the exact provider/model pair from the composer for any chat session. API keys are sent only to the local Signal server and saved to `data/providers.json`, which is ignored by Git.
 
+## Proxy routing
+
+Model traffic can optionally use an explicit application proxy, persisted separately in Git-ignored `data/proxy.json`. Configure it from **Model connection → Network routing**, test it, and save; all provider tests and streamed chats then use that proxy.
+
+On macOS, the same panel can also explicitly enable or disable HTTP and HTTPS proxy settings for one selected network service. This changes routing for all applications on that service, so it is intentionally a separate, confirmed action. The default shown is `http://localhost:3128`—the conventional explicit-proxy form for carrying both HTTP and HTTPS destination traffic.
+
 Use **Test connection** before saving a new connection, or **Test** beside an existing provider. The test sends a minimal request to the first configured model and returns the provider's HTTP error details when configuration, model/deployment names, or credentials are invalid.
 
 For different endpoints or keys in the same provider family, add separate connections; each remains independently selectable in the composer.
