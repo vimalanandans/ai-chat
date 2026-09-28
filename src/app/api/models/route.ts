@@ -3,6 +3,6 @@ import { getModels } from "@/features/chat/runtime";
 
 export const dynamic = "force-dynamic";
 
-export function GET() {
-  return NextResponse.json({ models: getModels() });
+export async function GET() {
+  return NextResponse.json({ models: await getModels() });
 }

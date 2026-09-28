@@ -22,6 +22,19 @@ export interface ModelOption {
   id: string;
   label: string;
   provider: string;
+  providerId: string;
+  configured: boolean;
+}
+
+export type ProviderKind = "openai" | "azure-openai" | "gemini";
+
+export interface ProviderSummary {
+  id: string;
+  name: string;
+  kind: ProviderKind;
+  endpoint: string;
+  models: string[];
+  apiVersion?: string;
   configured: boolean;
 }
 

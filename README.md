@@ -1,8 +1,18 @@
 # Signal
 
-Signal is a local-first, single-user, multi-session chat client for an OpenAI-compatible LLM endpoint. It stores sessions and drafts in the current browser's IndexedDB; API credentials remain server-side.
+Signal is a local-first, single-user, multi-session chat client. It stores sessions and drafts in the current browser's IndexedDB. Provider keys are stored only in a Git-ignored local server file.
 
-## Configure a model
+## Configure providers in the UI
+
+Open **Model connection** in the chat sidebar and add any combination of:
+
+- OpenAI-compatible endpoints;
+- Azure OpenAI resource endpoints and deployment names;
+- Google Gemini API endpoints and model IDs.
+
+Each provider can expose multiple models. Select the exact provider/model pair from the composer for any chat session. API keys are sent only to the local Signal server and saved to `data/providers.json`, which is ignored by Git.
+
+## Optional environment connection
 
 Copy the example file, add your approved provider credentials, and restart the development server:
 
@@ -11,7 +21,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-`LLM_MODELS` is a comma-separated list. Each configured model appears in the composer model picker and can be selected independently for every chat session.
+`LLM_MODELS` is a comma-separated list. This configures an additional environment-managed OpenAI-compatible connection; UI-managed providers do not require a server restart.
 
 ## Run
 

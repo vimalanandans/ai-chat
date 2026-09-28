@@ -3,16 +3,18 @@
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Check, ChevronDown, Command, Ellipsis, Menu, MessageSquarePlus, PanelLeftClose, Plus, SendHorizontal, Settings2, Sparkles, X } from "lucide-react";
 import { createEmptySession, createWelcomeSession } from "@/features/chat/demo";
+import { ProviderSettings } from "@/features/chat/provider-settings";
 import { loadChatStore, saveChatStore } from "@/features/chat/storage";
-import type { ChatMessage, ChatSession, ChatStore, ModelOption } from "@/features/chat/types";
+import type { ChatMessage, ChatSession, ChatStore, ModelOption, ProviderSummary } from "@/features/chat/types";
 
-const fallbackModels: ModelOption[] = [{ id: "gpt-4.1-mini", label: "gpt-4.1-mini", provider: "OpenAI-compatible", configured: false }];
+const fallbackModels: ModelOption[] = [{ id: "unconfigured:gpt-4.1-mini", label: "gpt-4.1-mini", provider: "No provider configured", providerId: "unconfigured", configured: false }];
 
 function formatDate(value: string) { return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
 function messagePreview(session: ChatSession) { return [...session.messages].reverse().find((message) => message.role === "user" || message.role === "assistant")?.content || "No messages yet"; }
 
 export default function ChatPage() {
   const [models, setModels] = useState<ModelOption[]>(fallbackModels);
+  const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeId, setActiveId] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -29,9 +31,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     async function start() {
-      const [stored, modelResponse] = await Promise.all([loadChatStore(), fetch("/api/models").then((response) => response.ok ? response.json() : undefined).catch(() => undefined)]);
-      const availableModels = modelResponse?.models?.length ? modelResponse.models as ModelOption[] : fallbackModels;
+      const [stored, providerResponse] = await Promise.all([loadChatStore(), fetch("/api/providers").then((response) => response.ok ? response.json() : undefined).catch(() => undefined)]);
+      const availableModels = providerResponse?.models?.length ? providerResponse.models as ModelOption[] : fallbackModels;
       setModels(availableModels);
+      setProviders(providerResponse?.providers ?? []);
       if (stored?.version === 1 && stored.sessions.length) { setSessions(stored.sessions); setActiveId(stored.activeSessionId); setSidebarOpen(stored.sidebarOpen); }
       else { const welcome = createWelcomeSession(availableModels[0].id); setSessions([welcome]); setActiveId(welcome.id); }
       setHydrated(true);
@@ -43,6 +46,10 @@ export default function ChatPage() {
   function updateSession(id: string, updater: (session: ChatSession) => ChatSession) { setSessions((items) => items.map((session) => session.id === id ? updater(session) : session)); }
   function newChat() { const session = createEmptySession(activeModel.id); setSessions((items) => [session, ...items]); setActiveId(session.id); setError(""); }
   function setModel(model: ModelOption) { if (!active || isStreaming) return; updateSession(active.id, (session) => ({ ...session, modelId: model.id, updatedAt: new Date().toISOString() })); setModelMenuOpen(false); }
+  function handleProvidersChanged(nextProviders: ProviderSummary[], nextModels: ModelOption[]) {
+    setProviders(nextProviders); setModels(nextModels.length ? nextModels : fallbackModels);
+    if (active && nextModels.length && !nextModels.some((model) => model.id === active.modelId)) updateSession(active.id, (session) => ({ ...session, modelId: nextModels[0].id, updatedAt: new Date().toISOString() }));
+  }
   function updateDraft(value: string) { if (!active || isStreaming) return; updateSession(active.id, (session) => ({ ...session, draft: value })); }
 
   async function sendMessage(event?: FormEvent) {
@@ -74,10 +81,9 @@ export default function ChatPage() {
       <div className="messages" aria-live="polite">{active.messages.length === 0 ? <Welcome onStart={() => document.getElementById("chat-composer")?.focus()} /> : active.messages.map((message) => <MessageBubble key={message.id} message={message} modelLabel={activeModel.label}/>) }<div ref={messagesEndRef}/></div>
       {error && <div className="chat-error" role="alert"><span>{error}</span><button onClick={() => setError("")} aria-label="Dismiss error"><X size={15}/></button></div>}
       <form className="composer" onSubmit={sendMessage}><div className="model-row"><div className="model-picker"><button type="button" onClick={() => setModelMenuOpen((open) => !open)} disabled={isStreaming} aria-expanded={modelMenuOpen}><span className={activeModel.configured ? "live-dot" : "idle-dot"}/>{activeModel.label}<ChevronDown size={14}/></button>{modelMenuOpen && <div className="model-menu" role="menu"><b>Choose a model</b>{models.map((model) => <button type="button" role="menuitem" key={model.id} onClick={() => setModel(model)}><span><strong>{model.label}</strong><small>{model.provider}</small></span>{model.id === active.modelId && <Check size={15}/>}</button>)}<footer><button type="button" onClick={() => { setModelMenuOpen(false); setSettingsOpen(true); }}>Manage connection</button></footer></div>}</div><span>{active.messages.length ? `${active.messages.filter((message) => message.role === "user").length} messages` : "Fresh context"}</span></div><div className="composer-input"><textarea id="chat-composer" value={active.draft} onChange={(event) => updateDraft(event.target.value)} onKeyDown={onComposerKeyDown} placeholder={activeModel.configured ? "Message the model…" : "Configure a model to send a message"} rows={1} disabled={isStreaming}/>{isStreaming ? <button type="button" className="stop-button" onClick={() => abortRef.current?.abort()}>Stop</button> : <button className="send-button" type="submit" disabled={!active.draft.trim()} aria-label="Send message"><SendHorizontal size={17}/></button>}</div><div className="composer-foot"><span><Command size={12}/> Enter to send · Shift Enter for a new line</span><span>Local history</span></div></form></section>
-    {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} models={models}/>}
+    {settingsOpen && <ProviderSettings onClose={() => setSettingsOpen(false)} providers={providers} models={models} onChanged={handleProvidersChanged}/>}
   </main>;
 }
 
 function Welcome({ onStart }: { onStart: () => void }) { return <section className="welcome"><span className="welcome-icon"><Sparkles size={21}/></span><span className="crumb">YOUR FIRST CONVERSATION</span><h2>Make a little room to think.</h2><p>Choose a model below, ask a question, and start a new chat whenever you want a fresh context. Your sessions and drafts stay in this browser.</p><div className="welcome-steps"><span><b>1</b> Connect a model</span><span><b>2</b> Ask anything</span><span><b>3</b> Start fresh when needed</span></div><button className="welcome-button" onClick={onStart}>Write a first message <SendHorizontal size={15}/></button></section>; }
 function MessageBubble({ message, modelLabel }: { message: ChatMessage; modelLabel: string }) { return <article className={`message ${message.role} ${message.state ?? ""}`}><div className="message-avatar">{message.role === "user" ? "Y" : <Sparkles size={15}/>}</div><div className="message-body"><header><b>{message.role === "user" ? "You" : modelLabel}</b><time>{message.state === "streaming" ? "Writing…" : new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time></header><p>{message.content || ""}{message.state === "streaming" && <span className="typing-cursor"/>}</p>{message.state === "error" && <small>Response was not completed.</small>}</div></article>; }
-function Settings({ onClose, models }: { onClose: () => void; models: ModelOption[] }) { return <div className="settings-scrim" role="presentation"><section className="settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title"><header><div><span className="crumb">MODEL CONNECTION</span><h2 id="settings-title">Configure your chat runtime</h2></div><button className="plain-icon" onClick={onClose} aria-label="Close settings"><X size={18}/></button></header><p>Secrets are configured on the server, not stored in this browser. Add these values to <code>.env.local</code>, then restart Signal.</p><pre>{`LLM_BASE_URL=https://api.openai.com/v1\nLLM_API_KEY=your-api-key\nLLM_MODELS=gpt-4.1-mini,gpt-4.1\nLLM_PROVIDER_NAME=OpenAI`}</pre><div className="settings-models"><b>AVAILABLE MODELS</b>{models.map((model) => <div key={model.id}><span className={model.configured ? "live-dot" : "idle-dot"}/><span>{model.label}</span><small>{model.configured ? "Configured" : "Awaiting connection"}</small></div>)}</div><footer><span>Any OpenAI-compatible chat-completions endpoint is supported.</span><button className="primary-button" onClick={onClose}>Done</button></footer></section></div>; }

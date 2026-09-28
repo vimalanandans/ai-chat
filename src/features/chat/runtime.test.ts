@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { parseModels } from "./runtime";
+import { createEmptySession, createWelcomeSession } from "./demo";
 
-describe("model configuration", () => {
-  it("uses each configured model and removes empty entries", () => {
-    expect(parseModels("alpha, , beta", undefined).map((model) => model.id)).toEqual(["alpha", "beta"]);
+describe("chat session setup", () => {
+  it("keeps the selected provider model with a fresh session", () => {
+    const session = createEmptySession("azure:writer-deployment");
+    expect(session.modelId).toBe("azure:writer-deployment");
+    expect(session.messages).toEqual([]);
   });
 
-  it("provides a safe default model identifier", () => {
-    expect(parseModels(undefined, undefined)[0].id).toBe("gpt-4.1-mini");
+  it("creates a visible local first-run guide", () => {
+    const session = createWelcomeSession("gemini:gemini-2.5-flash");
+    expect(session.messages[0].role).toBe("assistant");
+    expect(session.messages[0].content).toContain("New chat");
   });
 });
