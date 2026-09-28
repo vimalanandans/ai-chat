@@ -6,6 +6,7 @@ import { createEmptySession, createWelcomeSession } from "@/features/chat/demo";
 import { MarkdownMessage } from "@/features/chat/markdown-message";
 import { ProviderSettings } from "@/features/chat/provider-settings";
 import { loadChatStore, saveChatStore } from "@/features/chat/storage";
+import { StreamRegistry } from "@/features/chat/stream-registry";
 import type { ChatMessage, ChatSession, ChatStore, ModelOption, ProviderSummary } from "@/features/chat/types";
 
 const fallbackModels: ModelOption[] = [{ id: "unconfigured:gpt-4.1-mini", label: "gpt-4.1-mini", provider: "No provider configured", providerId: "unconfigured", configured: false }];
@@ -23,7 +24,7 @@ export default function ChatPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<{ message: string; diagnostics?: ChatDiagnostics }>();
-  const abortRef = useRef<AbortController | null>(null);
+  const [streams] = useState(() => new StreamRegistry());
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const active = useMemo(() => sessions.find((session) => session.id === activeId) ?? sessions[0], [sessions, activeId]);
@@ -46,6 +47,7 @@ export default function ChatPage() {
   useEffect(() => { if (!hydrated || !activeId) return; const timer = window.setTimeout(() => saveChatStore({ version: 1, sessions, activeSessionId: activeId, sidebarOpen }), 250); return () => window.clearTimeout(timer); }, [activeId, hydrated, sessions, sidebarOpen]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [active?.messages.length, lastMessageContent]);
   useEffect(() => { const element = composerRef.current; if (!element) return; element.style.height = "0px"; element.style.height = `${Math.min(element.scrollHeight, 160)}px`; }, [active?.draft]);
+  useEffect(() => () => streams.clear(), [streams]);
   function updateSession(id: string, updater: (session: ChatSession) => ChatSession) { setSessions((items) => items.map((session) => session.id === id ? updater(session) : session)); }
   function newChat() { const session = createEmptySession(activeModel.id); setSessions((items) => [session, ...items]); setActiveId(session.id); setError(undefined); }
   function setModel(model: ModelOption) { if (!active || isStreaming) return; updateSession(active.id, (session) => ({ ...session, modelId: model.id, updatedAt: new Date().toISOString() })); setModelMenuOpen(false); }
@@ -62,7 +64,7 @@ export default function ChatPage() {
     const nextTitle = active.messages.filter((message) => message.role === "user").length === 0 ? content.slice(0, 52) : active.title;
     const requestMessages = [...active.messages, userMessage].filter((message) => !message.localOnly && !(message.role === "assistant" && message.content.startsWith("Welcome to Signal. This is your private, local chat space."))).map(({ role, content: body }) => ({ role, content: body }));
     updateSession(active.id, (session) => ({ ...session, title: nextTitle || "New conversation", draft: "", updatedAt: now, messages: [...session.messages, userMessage, assistantMessage] }));
-    const controller = new AbortController(); abortRef.current = controller;
+    const controller = streams.start(active.id);
     try {
       const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: active.modelId, messages: requestMessages }), signal: controller.signal });
       if (!response.ok) { const details = await response.json().catch(() => ({})) as { error?: string; diagnostics?: ChatDiagnostics }; throw new ChatRequestError(details.error || "The model could not respond.", details.diagnostics); }
@@ -72,7 +74,7 @@ export default function ChatPage() {
     } catch (caught) {
       const message = caught instanceof Error && caught.name === "AbortError" ? "Response stopped." : caught instanceof Error ? caught.message : "The model could not respond."; setError({ message, diagnostics: caught instanceof ChatRequestError ? caught.diagnostics : undefined });
       updateSession(active.id, (session) => ({ ...session, messages: session.messages.map((item) => item.id === assistantId ? { ...item, content: item.content || "No response was saved.", state: "error" } : item) }));
-    } finally { abortRef.current = null; }
+    } finally { streams.release(active.id, controller); }
   }
   function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } }
   if (!hydrated || !active) return <main className="chat-loading"><span className="signal-mark"><i /></span><p>Opening your chat space…</p></main>;
@@ -83,7 +85,7 @@ export default function ChatPage() {
       {!activeModel.configured && <section className="setup-banner"><div><Sparkles size={17}/></div><p><b>Connect a model to start chatting.</b> Signal keeps conversations in this browser and sends prompts only to your configured endpoint.</p><button onClick={() => setSettingsOpen(true)}>Set up model</button></section>}
       <div className="messages" aria-live="polite">{active.messages.length === 0 ? <Welcome onStart={() => document.getElementById("chat-composer")?.focus()} /> : active.messages.map((message) => <MessageBubble key={message.id} message={message} modelLabel={activeModel.label}/>) }<div ref={messagesEndRef}/></div>
       {error && <div className="chat-error" role="alert"><div><span>{error.message}</span>{error.diagnostics && <small>Provider: {error.diagnostics.provider} · Model/deployment: {error.diagnostics.model} · HTTP {error.diagnostics.status}<br/>Endpoint: {error.diagnostics.endpoint}<br/>Reason: {error.diagnostics.reason}</small>}</div><button onClick={() => setError(undefined)} aria-label="Dismiss error"><X size={15}/></button></div>}
-      <form className="composer" onSubmit={sendMessage}><div className="model-row"><div className="model-picker"><button type="button" onClick={() => setModelMenuOpen((open) => !open)} disabled={isStreaming} aria-expanded={modelMenuOpen}><span className={activeModel.configured ? "live-dot" : "idle-dot"}/>{activeModel.label}<ChevronDown size={14}/></button>{modelMenuOpen && <div className="model-menu" role="menu"><b>Choose a model</b>{models.map((model) => <button type="button" role="menuitem" key={model.id} onClick={() => setModel(model)}><span><strong>{model.label}</strong><small>{model.provider}</small></span>{model.id === active.modelId && <Check size={15}/>}</button>)}<footer><button type="button" onClick={() => { setModelMenuOpen(false); setSettingsOpen(true); }}>Manage connection</button></footer></div>}</div><span>{active.messages.length ? `${active.messages.filter((message) => message.role === "user").length} messages` : "Fresh context"}</span></div><div className="composer-input"><textarea ref={composerRef} id="chat-composer" value={active.draft} onChange={(event) => updateDraft(event.target.value)} onKeyDown={onComposerKeyDown} placeholder={activeModel.configured ? "Message the model…" : "Configure a model to send a message"} rows={1} disabled={isStreaming}/>{isStreaming ? <button type="button" className="stop-button" onClick={() => abortRef.current?.abort()}>Stop</button> : <button className="send-button" type="submit" disabled={!active.draft.trim()} aria-label="Send message"><SendHorizontal size={17}/></button>}</div><div className="composer-foot"><span><Command size={12}/> Enter to send · Shift Enter for a new line</span><span>Markdown · Local history</span></div></form></section>
+      <form className="composer" onSubmit={sendMessage}><div className="model-row"><div className="model-picker"><button type="button" onClick={() => setModelMenuOpen((open) => !open)} disabled={isStreaming} aria-expanded={modelMenuOpen}><span className={activeModel.configured ? "live-dot" : "idle-dot"}/>{activeModel.label}<ChevronDown size={14}/></button>{modelMenuOpen && <div className="model-menu" role="menu"><b>Choose a model</b>{models.map((model) => <button type="button" role="menuitem" key={model.id} onClick={() => setModel(model)}><span><strong>{model.label}</strong><small>{model.provider}</small></span>{model.id === active.modelId && <Check size={15}/>}</button>)}<footer><button type="button" onClick={() => { setModelMenuOpen(false); setSettingsOpen(true); }}>Manage connection</button></footer></div>}</div><span>{active.messages.length ? `${active.messages.filter((message) => message.role === "user").length} messages` : "Fresh context"}</span></div><div className="composer-input"><textarea ref={composerRef} id="chat-composer" value={active.draft} onChange={(event) => updateDraft(event.target.value)} onKeyDown={onComposerKeyDown} placeholder={activeModel.configured ? "Message the model…" : "Configure a model to send a message"} rows={1} disabled={isStreaming}/>{isStreaming ? <button type="button" className="stop-button" onClick={() => streams.stop(active.id)}>Stop</button> : <button className="send-button" type="submit" disabled={!active.draft.trim()} aria-label="Send message"><SendHorizontal size={17}/></button>}</div><div className="composer-foot"><span><Command size={12}/> Enter to send · Shift Enter for a new line</span><span>Markdown · Local history</span></div></form></section>
     {settingsOpen && <ProviderSettings onClose={() => setSettingsOpen(false)} providers={providers} models={models} onChanged={handleProvidersChanged}/>}
   </main>;
 }

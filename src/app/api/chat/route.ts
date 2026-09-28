@@ -1,4 +1,5 @@
 import { findModel, openAiCompatibleChat, openAiCompatibleRequest, providerFetch } from "@/features/chat/runtime";
+import { localOnlyResponse } from "@/features/chat/local-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,7 @@ function geminiStream(upstream: UpstreamResponse) { return textStream(upstream, 
 function responsesStream(upstream: UpstreamResponse) { return textStream(upstream, (payload) => payload.type === "response.output_text.delta" && typeof payload.delta === "string" ? payload.delta : undefined); }
 function anthropicStream(upstream: UpstreamResponse) { return textStream(upstream, (payload) => payload.type === "content_block_delta" && typeof (payload.delta as { text?: unknown } | undefined)?.text === "string" ? (payload.delta as { text: string }).text : undefined); }
 export async function POST(request: Request) {
+  const blocked = localOnlyResponse(request); if (blocked) return blocked;
   const body = await request.json().catch(() => null) as { model?: string; messages?: InputMessage[] } | null;
   if (!body?.model || !Array.isArray(body.messages) || !body.messages.length) return error("A model and at least one message are required.", 400);
   if (body.messages.length > 100 || body.messages.some((message) => typeof message.content !== "string" || message.content.length > 24_000)) return error("This conversation is too large for the local chat runtime.", 413);

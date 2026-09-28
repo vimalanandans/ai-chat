@@ -1,12 +1,12 @@
 {
   "name": "signal-workspace",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "docs:check": "node scripts/check-docs.mjs",
-    "start": "next start",
+    "start": "next start --hostname 127.0.0.1",
     "lint": "eslint .",
     "test": "vitest run"
   },

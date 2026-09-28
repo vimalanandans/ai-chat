@@ -2,6 +2,8 @@
 
 Signal is a local-first, single-user, multi-session chat client. It stores sessions and drafts in the current browser's IndexedDB. Provider keys are stored only in a Git-ignored local server file.
 
+The development and production scripts bind the server to `127.0.0.1`, and every API route independently rejects non-loopback requests. This is a local-machine trust boundary, not multi-user authentication; do not place Signal behind a public or shared reverse proxy.
+
 ## Configure providers in the UI
 
 Open **Model connection** in the chat sidebar and add any combination of:
