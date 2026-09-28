@@ -14,7 +14,9 @@ describe("chat session setup", () => {
     expect(createEmptySession("azure:writer-deployment").modelId).toBe("azure:writer-deployment");
   });
   it("creates a visible local first-run guide", () => {
-    expect(createWelcomeSession("gemini:gemini-2.5-flash").messages[0].content).toContain("New chat");
+    const welcome = createWelcomeSession("gemini:gemini-2.5-flash").messages[0];
+    expect(welcome.content).toContain("New chat");
+    expect(welcome.localOnly).toBe(true);
   });
 });
 

@@ -11,7 +11,8 @@ export function createWelcomeSession(modelId: string): ChatSession {
     draft: "",
     messages: [{
       id: crypto.randomUUID(), role: "assistant", createdAt,
-      content: "Welcome to Signal. This is your private, local chat space. Choose a configured model, ask anything, and use **New chat** whenever you want a clean context."
+      content: "Welcome to Signal. This is your private, local chat space. Choose a configured model, ask anything, and use **New chat** whenever you want a clean context.",
+      localOnly: true
     }]
   };
 }

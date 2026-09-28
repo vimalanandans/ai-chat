@@ -6,6 +6,7 @@ export interface ChatMessage {
   content: string;
   createdAt: string;
   state?: "streaming" | "error";
+  localOnly?: boolean;
 }
 
 export interface ChatSession {
