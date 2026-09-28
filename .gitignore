@@ -1,0 +1,12 @@
+# dependencies and framework output
+/node_modules
+/.next
+/out
+/data/
+
+# local configuration
+.env*
+!.env.example
+
+# TypeScript build info
+*.tsbuildinfo
