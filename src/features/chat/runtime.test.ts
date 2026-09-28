@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createEmptySession, createWelcomeSession } from "./demo";
+import { createProviderDrafts, parseProviderDrafts, updateProviderDraft } from "./provider-drafts";
 import { deleteProvider, getModels, getProviderSummaries, getProxySettings, saveProvider, saveProxySettings } from "./runtime";
 
 let testDirectory = "";
@@ -36,5 +37,19 @@ describe("outbound proxy settings", () => {
     process.env.SIGNAL_PROXY_STORE = join(testDirectory, "proxy.json");
     await saveProxySettings({ enabled: true, endpoint: "http://localhost:3128/" });
     await expect(getProxySettings()).resolves.toEqual({ enabled: true, endpoint: "http://localhost:3128" });
+  });
+});
+
+describe("provider configuration drafts", () => {
+  it("keeps provider-specific endpoints and models isolated when switching types", () => {
+    const azure = updateProviderDraft(createProviderDrafts(), "azure-openai", { endpoint: "https://contoso.openai.azure.com", models: "luna-deployment" });
+    const gemini = updateProviderDraft(azure, "gemini", { models: "gemini-2.5-pro" });
+    expect(gemini["azure-openai"]).toMatchObject({ endpoint: "https://contoso.openai.azure.com", models: "luna-deployment" });
+    expect(gemini.gemini).toMatchObject({ endpoint: "https://generativelanguage.googleapis.com/v1beta", models: "gemini-2.5-pro" });
+  });
+  it("migrates the previous single-provider draft without copying it to other providers", () => {
+    const drafts = parseProviderDrafts(JSON.stringify({ kind: "azure-openai", name: "Luna", endpoint: "https://contoso.openai.azure.com", models: "luna", apiVersion: "2024-10-21" }));
+    expect(drafts["azure-openai"].endpoint).toBe("https://contoso.openai.azure.com");
+    expect(drafts.gemini.endpoint).toBe("https://generativelanguage.googleapis.com/v1beta");
   });
 });
