@@ -53,6 +53,16 @@ export async function providerFetch(input: string, init: Parameters<typeof undic
   if (!proxyAgent || proxyAgent.endpoint !== settings.endpoint) proxyAgent = { endpoint: settings.endpoint, agent: new ProxyAgent(settings.endpoint) };
   return undiciFetch(input, { ...init, dispatcher: proxyAgent.agent });
 }
+function rejectsModernTokenLimit(response: Awaited<ReturnType<typeof providerFetch>>) {
+  return response.clone().text().then((body) => /max_completion_tokens/i.test(body) && /(unsupported|unknown|unrecognized) parameter/i.test(body)).catch(() => false);
+}
+export async function openAiCompatibleChat(endpoint: string, apiKey: string, payload: Record<string, unknown>, signal?: AbortSignal) {
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
+  const modern = await providerFetch(`${endpoint}/chat/completions`, { method: "POST", headers, body: JSON.stringify(payload), signal });
+  if (modern.ok || !await rejectsModernTokenLimit(modern)) return modern;
+  const { max_completion_tokens: tokenLimit, ...legacyPayload } = payload;
+  return providerFetch(`${endpoint}/chat/completions`, { method: "POST", headers, body: JSON.stringify({ ...legacyPayload, max_tokens: tokenLimit }), signal });
+}
 export async function testProxy(input?: ProxyInput): Promise<string> {
   const settings = input ? { enabled: Boolean(input.enabled), endpoint: cleanProxyEndpoint(input.endpoint) } : await getProxySettings();
   if (!settings.enabled || !settings.endpoint) throw new Error("Enable the application proxy and enter its URL before testing.");
@@ -96,7 +106,7 @@ export async function testProvider(input: ProviderInput): Promise<string> {
   else if (kind === "anthropic") response = await providerFetch(`${endpoint}/messages`, { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model, max_tokens: 4, messages: [{ role: "user", content: "Reply with OK." }] }) });
   else if (kind === "openai-responses") response = await providerFetch(`${endpoint}/responses`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, input: "Reply with OK.", max_output_tokens: 4 }) });
   else if (kind === "azure-openai") response = await providerFetch(`${endpoint}/openai/deployments/${encodeURIComponent(model)}/chat/completions?api-version=${encodeURIComponent(input.apiVersion || saved?.apiVersion || "2024-10-21")}`, { method: "POST", headers: { "Content-Type": "application/json", "api-key": apiKey }, body: JSON.stringify({ messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 4 }) });
-  else response = await providerFetch(`${endpoint}/chat/completions`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 4 }) });
+  else response = await openAiCompatibleChat(endpoint, apiKey, { model, messages: [{ role: "user", content: "Reply with OK." }], max_completion_tokens: 4 });
   if (!response.ok) { const detail = (await response.text()).replace(/\s+/g, " ").slice(0, 240); throw new Error(`Connection test failed (${response.status}): ${detail || response.statusText}`); }
   return `Connected to ${model} through ${saved?.name || input.name || "this provider"}.`;
 }

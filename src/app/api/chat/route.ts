@@ -1,4 +1,4 @@
-import { findModel, providerFetch } from "@/features/chat/runtime";
+import { findModel, openAiCompatibleChat, providerFetch } from "@/features/chat/runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     else if (provider.kind === "anthropic") { upstream = await providerFetch(`${provider.endpoint}/messages`, { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": provider.apiKey, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model, max_tokens: 2048, stream: true, messages: body.messages }), signal: request.signal }); }
     else if (provider.kind === "openai-responses") { upstream = await providerFetch(`${provider.endpoint}/responses`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` }, body: JSON.stringify({ model, input: body.messages.map((message) => ({ role: message.role, content: message.content })), stream: true }), signal: request.signal }); }
     else if (provider.kind === "azure-openai") { const endpoint = `${provider.endpoint}/openai/deployments/${encodeURIComponent(model)}/chat/completions?api-version=${encodeURIComponent(provider.apiVersion || "2024-10-21")}`; upstream = await providerFetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", "api-key": provider.apiKey }, body: JSON.stringify({ messages: body.messages, stream: true, temperature: 0.7 }), signal: request.signal }); }
-    else { upstream = await providerFetch(`${provider.endpoint}/chat/completions`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` }, body: JSON.stringify({ model, messages: body.messages, stream: true, temperature: 0.7 }), signal: request.signal }); }
+    else { upstream = await openAiCompatibleChat(provider.endpoint, provider.apiKey, { model, messages: body.messages, stream: true, temperature: 0.7, max_completion_tokens: 2048 }, request.signal); }
   } catch { return error("The configured provider endpoint could not be reached.", 502); }
   if (!upstream.ok || !upstream.body) return error("The configured provider rejected this request.", upstream.status || 502);
   const stream = provider.kind === "gemini" ? geminiStream(upstream) : provider.kind === "anthropic" ? anthropicStream(upstream) : provider.kind === "openai-responses" ? responsesStream(upstream) : openAiStream(upstream);
