@@ -1,6 +1,6 @@
 import { access, readFile } from "node:fs/promises";
 
-const documents = ["README.md", "docs/README.md", "docs/USER_GUIDE.md", "docs/ARCHITECTURE.md", "docs/API_REFERENCE.md", "docs/OPERATIONS.md"];
+const documents = ["README.md", "docs/README.md", "docs/PRODUCT_CONCEPT.md", "docs/USER_GUIDE.md", "docs/ARCHITECTURE.md", "docs/API_REFERENCE.md", "docs/OPERATIONS.md"];
 const secretPattern = /(?:sk|AIza)[-_A-Za-z0-9]{12,}/;
 const missing = [];
 

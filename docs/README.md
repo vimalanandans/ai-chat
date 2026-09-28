@@ -1,10 +1,13 @@
 # Signal documentation
 
-This directory describes the shipped local-first Signal workspace. It is written for the current single-user desktop deployment; it does not describe a hosted multi-tenant service.
+Signal is a local-first, single-user workspace for managing multiple AI chat conversations and provider connections. These documents describe the software as it ships today—not a future hosted or multi-agent product.
 
-- [User guide](USER_GUIDE.md) — configure providers, start chats, edit a connection, and diagnose a failure.
-- [Architecture](ARCHITECTURE.md) — runtime boundaries, persistence, security posture, and extension seams.
-- [API reference](API_REFERENCE.md) — local HTTP routes and response shapes.
-- [Operations](OPERATIONS.md) — local development, validation, data locations, troubleshooting, and release checks.
+Read in this order when you are new to the project:
 
-Run `npm run docs:check` after changing a documented capability or route. It verifies that the documentation set exists and contains no common secret-like tokens.
+1. [Product concept](PRODUCT_CONCEPT.md) — the problem Signal solves, its principles, and its boundaries.
+2. [User guide](USER_GUIDE.md) — first conversation, providers, models, Markdown, proxies, and recovery from common failures.
+3. [Architecture](ARCHITECTURE.md) — components, data ownership, security boundaries, and extension seams.
+4. [Operations](OPERATIONS.md) — local setup, validation, data handling, troubleshooting, and release checks.
+5. [Local API reference](API_REFERENCE.md) — browser-to-local-server routes and their request/response contracts.
+
+Run `npm run docs:check` after changing a user-visible workflow, storage location, route, provider protocol, or security boundary. It verifies the documentation set exists and contains no common secret-like tokens.

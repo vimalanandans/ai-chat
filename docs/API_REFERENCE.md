@@ -1,6 +1,10 @@
 # Local API reference
 
-These routes are consumed by the local Signal UI. They are not a public multi-tenant API and do not implement authentication. Do not expose this server directly to untrusted networks.
+These routes are private browser-to-local-server contracts used by Signal’s UI. They are not a public or multi-tenant API.
+
+The server binds to `127.0.0.1`. Every route also rejects a request with a non-loopback host, origin, `X-Forwarded-For`, or `X-Real-IP` value. A rejected request returns `403` with a safe local-only error. Do not expose the server behind a public or shared reverse proxy.
+
+All JSON errors use `{ "error": "…" }`; provider test and chat errors may also include sanitized `diagnostics`. API keys are never returned.
 
 ## Chat and models
 
@@ -8,16 +12,16 @@ These routes are consumed by the local Signal UI. They are not a public multi-te
 
 Streams text from the selected saved provider/model.
 
-Request:
-
 ```json
 {
   "model": "provider-record-id:model-or-deployment",
-  "messages": [{ "role": "user", "content": "Hello" }]
+  "messages": [
+    { "role": "user", "content": "Hello" }
+  ]
 }
 ```
 
-Successful responses are UTF-8 text streams. Error responses contain `error` and may include sanitized `diagnostics` with provider type, model/deployment, endpoint, HTTP status, reason, API version, and route.
+The request must include a configured model and one to 100 messages. Message content is capped at 24,000 characters. A successful response is a UTF-8 `text/plain` stream. A provider failure includes safe diagnostics with provider type, model/deployment, endpoint, HTTP status, reason, API version when relevant, and route.
 
 ### `GET /api/models`
 
@@ -27,42 +31,42 @@ Returns `{ "models": ModelOption[] }`. A model option includes an ID, display la
 
 ### `GET /api/providers`
 
-Returns `{ "providers": ProviderSummary[], "models": ModelOption[] }`. API keys are never included.
+Returns `{ "providers": ProviderSummary[], "models": ModelOption[] }`. Provider summaries contain ID, name, type, endpoint, model list, optional Azure API version, and configuration state—not API keys.
 
 ### `POST /api/providers`
 
-Creates or updates a local provider connection. Required values for a new connection are provider kind, name, endpoint, key, and one or more model/deployment IDs. Include an existing connection ID to update it. An omitted key during an update retains the existing key.
+Creates or updates a local provider connection. A new connection requires a provider kind, name, endpoint, API key, and one or more model/deployment IDs. Send an existing connection ID to update it. Omit the API key during an update to preserve the stored key.
 
 ### `DELETE /api/providers?id={id}`
 
-Removes a UI-managed provider connection. Environment-managed connections cannot be deleted through this route.
+Removes a UI-managed provider connection. The environment-managed `environment` connection cannot be removed through this route.
 
 ### `POST /api/providers/test`
 
-Accepts the same provider connection shape and sends a minimal non-streaming request. A success response contains a message and safe diagnostics. A failure returns HTTP 400 with `error` and, where available, diagnostics. The key is never returned.
+Accepts the same provider connection shape and sends a minimal, non-streaming request to the first model/deployment. A successful response contains a message and safe diagnostics. A failed test returns `400` with `error` and diagnostics where available.
 
 ## Proxy settings
 
 ### `GET /api/proxy`
 
-Returns application proxy settings and the currently discoverable macOS system proxy services.
+Returns application proxy settings and currently discoverable macOS system-proxy services.
 
 ### `POST /api/proxy`
 
-Saves `{ "enabled": boolean, "endpoint": "http-or-https-proxy-url" }` for application provider traffic.
+Saves `{ "enabled": boolean, "endpoint": "http-or-https-proxy-url" }` for provider traffic. Enabling it requires a valid `http://` or `https://` proxy URL.
 
 ### `DELETE /api/proxy`
 
-Disables application proxy routing.
+Disables application proxy routing and clears the saved endpoint.
 
 ### `PATCH /api/proxy`
 
-Tests a supplied application proxy configuration using a short external connectivity request.
+Tests a supplied application-proxy configuration with a short external connectivity request. It does not save the supplied values.
 
 ### `GET /api/proxy/system`
 
-Returns macOS system-proxy capability and network service states. Non-macOS hosts report unsupported status.
+Returns macOS system-proxy capability and network-service states. Non-macOS hosts report unsupported status.
 
 ### `POST /api/proxy/system`
 
-Accepts a selected network service, requested enabled state, and proxy endpoint when enabling. It changes HTTP and HTTPS proxy settings for that macOS service.
+Accepts a selected network service, requested enabled state, and a proxy endpoint when enabling. It updates HTTP and HTTPS proxy settings for that macOS service. This is a machine-wide network setting, so the UI requires confirmation before calling it.

@@ -1,51 +1,75 @@
 # Signal
 
-Signal is a local-first, single-user, multi-session chat client. It stores sessions and drafts in the current browser's IndexedDB. Provider keys are stored only in a Git-ignored local server file.
+Signal is a calm, local-first chat workspace for one person using one or more AI providers. It keeps each conversation, its selected model, and its unfinished draft separate—so changing models or starting a new thought does not erase the work already in progress.
 
-The development and production scripts bind the server to `127.0.0.1`, and every API route independently rejects non-loopback requests. This is a local-machine trust boundary, not multi-user authentication; do not place Signal behind a public or shared reverse proxy.
+It is intentionally a desktop-style local application, not a hosted team service. The browser owns conversation history; the local Next.js server owns provider credentials and performs provider requests.
 
-## Configure providers in the UI
+## What Signal is for
 
-Open **Model connection** in the chat sidebar and add any combination of:
+- Keep independent, persistent chat sessions in one focused workspace.
+- Connect several provider accounts, endpoints, deployments, and models at once.
+- Select the exact connection/model pair for each conversation.
+- Test a connection before relying on it, with useful diagnostics that do not expose keys.
+- Read model output comfortably with safe Markdown, tables, and copyable code blocks.
 
-- OpenAI-compatible endpoints;
-- OpenAI Responses API endpoints for newer OpenAI models;
-- Azure OpenAI resource endpoints and deployment names;
-- Google Gemini API endpoints and model IDs.
-- Anthropic Messages API endpoints and model IDs.
+## What Signal does not do yet
 
-Each provider can expose multiple models. Select the exact provider/model pair from the composer for any chat session. API keys are sent only to the local Signal server and saved to `data/providers.json`, which is ignored by Git.
+Signal has no sign-in, cloud synchronization, collaboration, file attachments, background agents, or hosted deployment mode. It should only run on a computer you trust.
 
-## Proxy routing
-
-Model traffic can optionally use an explicit application proxy, persisted separately in Git-ignored `data/proxy.json`. Configure it from **Model connection → Network routing**, test it, and save; all provider tests and streamed chats then use that proxy.
-
-On macOS, the same panel can also explicitly enable or disable HTTP and HTTPS proxy settings for one selected network service. This changes routing for all applications on that service, so it is intentionally a separate, confirmed action. The default shown is `http://localhost:3128`—the conventional explicit-proxy form for carrying both HTTP and HTTPS destination traffic.
-
-Use **Test connection** before saving a new connection, or **Test** beside an existing provider. The test sends a minimal request to the first configured model and returns the provider's HTTP error details when configuration, model/deployment names, or credentials are invalid.
-
-For different endpoints or keys in the same provider family, add separate connections; each remains independently selectable in the composer.
-
-## Optional environment connection
-
-Copy the example file, add your approved provider credentials, and restart the development server:
-
-```sh
-cp .env.example .env.local
-npm run dev
-```
-
-`LLM_MODELS` is a comma-separated list. This configures an additional environment-managed OpenAI-compatible connection; UI-managed providers do not require a server restart.
-
-## Run
+## Start here
 
 ```sh
 npm install
 npm run dev
 ```
 
-Run checks with `npm run lint`, `npm run test`, and `npm run build -- --webpack`.
+Open the loopback URL printed by Next.js, then:
 
-## Documentation
+1. Select **Model connection** in the conversation sidebar.
+2. Choose the provider protocol, enter a connection name, endpoint, API key, and one or more model IDs or Azure deployment names.
+3. Run **Test connection**, review the result, and save the connection.
+4. Choose the connection/model pair in the composer and send a message.
 
-See the [documentation index](docs/README.md) for the user guide, architecture, local API reference, and operations notes. Run `npm run docs:check` to validate the documentation set.
+The app binds to `127.0.0.1`, and its API routes independently reject non-loopback requests. This is a local-machine trust boundary, not multi-user authentication. Do not publish Signal through a public or shared reverse proxy.
+
+## Providers and models
+
+Signal supports these provider protocols from the UI:
+
+| Connection type | Use it for | Model field |
+| --- | --- | --- |
+| Compatible | Chat Completions-compatible services | Model ID |
+| OpenAI | OpenAI Responses-compatible services | Model ID |
+| Azure | Azure OpenAI resources | Deployment name |
+| Gemini | Google Gemini API | Model ID |
+| Anthropic | Anthropic Messages API | Model ID |
+
+Create a separate saved connection for every endpoint/key combination, including connections from the same provider family. One connection may list multiple models. Provider keys are never returned to the browser and are written only to the Git-ignored `data/providers.json` file on the local server.
+
+## Privacy and routing
+
+Sessions, selected session, drafts, and sidebar state are stored in the browser’s IndexedDB. Provider requests are sent only to the endpoint selected for that session.
+
+An optional application proxy applies to provider tests and chat traffic and is persisted separately in Git-ignored `data/proxy.json`. On macOS, Signal can also change HTTP/HTTPS proxy settings for one chosen network service after explicit confirmation. That system-level control affects other applications and should be used deliberately.
+
+## Optional environment-managed connection
+
+For a single OpenAI-compatible connection managed outside the UI, copy the example file, set local values, and restart the server:
+
+```sh
+cp .env.example .env.local
+npm run dev
+```
+
+`LLM_MODELS` accepts a comma-separated model list. UI-managed connections do not require a server restart.
+
+## Verify a change
+
+```sh
+npm run lint
+npm run test
+npm run docs:check
+npm run build -- --webpack
+```
+
+See the [documentation index](docs/README.md) for product intent, the user guide, architecture, local API reference, and operating notes.
