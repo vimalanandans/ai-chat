@@ -1,0 +1,17 @@
+/* Desktop keeps context controls visible while the conversation scrolls. */
+@media (min-width: 761px) {
+  .context-panel {
+    align-self: start;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overscroll-behavior: contain;
+  }
+}
+
+.context-notice {
+  margin: 0;
+  color: #687083;
+  font-size: 9px;
+  line-height: 1.45;
+}

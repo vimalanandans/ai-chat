@@ -20,27 +20,38 @@ async function refreshProfiles() {
   const settings = await getWorkspaceSettings();
   const cache = { ...settings.metadataCache };
   const now = new Date().toISOString();
-  try {
+  const warnings: string[] = [];
+  const refreshedModelIds = new Set<string>();
+  const providers = await getProviders();
+  if (!settings.catalogPublicKey) warnings.push("Signed catalog verification is not configured. Add its public key in Data & context settings to refresh catalog limits.");
+  else try {
     const catalog = await fetchVerifiedCatalog(settings);
-    if (catalog) for (const provider of await getProviders()) for (const model of provider.models) {
+    if (catalog) for (const provider of providers) for (const model of provider.models) {
       const entry = catalog.profiles.find((profile) => profile.model === model);
-      if (entry) cache[`${provider.id}:${model}`] = { ...entry, modelId: `${provider.id}:${model}`, source: "catalog", refreshedAt: now };
+      if (entry) {
+        const modelId = `${provider.id}:${model}`;
+        cache[modelId] = { ...entry, modelId, source: "catalog", refreshedAt: now };
+        refreshedModelIds.add(modelId);
+      }
     }
-  } catch { /* Signature, expiry, and network failures keep the last verified cache. */ }
-  for (const provider of await getProviders()) {
+  } catch { warnings.push("The signed catalog could not be verified or downloaded. Previously verified model limits were kept."); }
+  let hasNonGeminiModels = false;
+  for (const provider of providers) {
     for (const model of provider.models) {
       const modelId = `${provider.id}:${model}`;
-      if (provider.kind !== "gemini") continue;
+      if (provider.kind !== "gemini") { hasNonGeminiModels = true; continue; }
       try {
-        const response = await providerFetch(`${provider.endpoint}/models/${encodeURIComponent(model)}`, { headers: { "x-goog-api-key": (await findModel(modelId))!.provider.apiKey } });
-        if (!response.ok) continue;
+        const response = await providerFetch(`${provider.endpoint}/models/${encodeURIComponent(model)}`, { headers: { "x-goog-api-key": provider.apiKey } });
+        if (!response.ok) { warnings.push(`Gemini did not return metadata for ${model} (${response.status}).`); continue; }
         const payload = await response.json() as { inputTokenLimit?: number; outputTokenLimit?: number; supportedGenerationMethods?: string[] };
         cache[modelId] = { modelId, contextWindow: payload.inputTokenLimit && payload.outputTokenLimit ? payload.inputTokenLimit + payload.outputTokenLimit : payload.inputTokenLimit, maxInputTokens: payload.inputTokenLimit, maxOutputTokens: payload.outputTokenLimit, tokenizer: "provider", capabilities: payload.supportedGenerationMethods || [], source: "provider", refreshedAt: now };
-      } catch { /* Keep the last verified profile. */ }
+        refreshedModelIds.add(modelId);
+      } catch { warnings.push(`Gemini metadata could not be refreshed for ${model}. Previously verified limits were kept.`); }
     }
   }
+  if (hasNonGeminiModels) warnings.push("OpenAI-compatible, Azure, and Anthropic connections do not publish context limits through this refresh endpoint. Use a verified catalog or a selected-model override.");
   await saveWorkspaceSettings({ metadataCache: cache });
-  return cache;
+  return { metadataCache: cache, refreshedModelIds: [...refreshedModelIds], warnings };
 }
 
 async function generateSummary(session: ChatSession, messageIds: string[], reserve: number) {
@@ -74,7 +85,7 @@ export async function POST(request: Request) {
   const blocked = localOnlyResponse(request); if (blocked) return blocked;
   try {
     const body = await request.json() as { action?: "refresh" | "propose" | "generate" | "apply"; sessionId?: string; summary?: string; messageIds?: string[] };
-    if (body.action === "refresh") return NextResponse.json({ metadataCache: await refreshProfiles() });
+    if (body.action === "refresh") return NextResponse.json(await refreshProfiles());
     if (!body.sessionId) throw new Error("sessionId is required.");
     const { workspace, session } = await sessionFor(body.sessionId); const settings = await getWorkspaceSettings(); const snapshot = snapshotFor(session, profileFor(session.modelId, settings), settings, session.draft);
     if (body.action === "propose") return NextResponse.json({ snapshot, messageIds: proposedArchive(session, snapshot) });
