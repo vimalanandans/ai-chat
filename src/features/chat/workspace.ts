@@ -55,7 +55,7 @@ async function loadWorkspaceFromSettings(settings: WorkspaceSettings): Promise<C
   try {
     const manifest = JSON.parse(await readFile(manifestFile(settings), "utf8")) as Omit<ChatStore, "sessions"> & { sessionIds: string[] };
     const sessions = (await Promise.all(manifest.sessionIds.map(async (id) => JSON.parse(await readFile(sessionFile(settings, id), "utf8")) as ChatSession))).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    return { version: 2, sessions, activeSessionId: manifest.activeSessionId, sidebarOpen: manifest.sidebarOpen, contextPanelOpen: manifest.contextPanelOpen, contextPanelWidth: manifest.contextPanelWidth };
+    return { version: 2, sessions, activeSessionId: manifest.activeSessionId, sidebarOpen: manifest.sidebarOpen, sidebarWidth: manifest.sidebarWidth, contextPanelOpen: manifest.contextPanelOpen, contextPanelWidth: manifest.contextPanelWidth };
   } catch { return undefined; }
 }
 
@@ -67,7 +67,7 @@ export async function saveWorkspace(store: ChatStore): Promise<ChatStore> {
 async function saveWorkspaceAt(settings: WorkspaceSettings, store: ChatStore): Promise<ChatStore> {
   await mkdir(join(settings.sessionDirectory, "sessions"), { recursive: true, mode: 0o700 });
   await Promise.all(store.sessions.map((session) => atomicWrite(sessionFile(settings, session.id), session)));
-  await atomicWrite(manifestFile(settings), { version: 2, sessionIds: store.sessions.map((session) => session.id), activeSessionId: store.activeSessionId, sidebarOpen: store.sidebarOpen, contextPanelOpen: Boolean(store.contextPanelOpen), contextPanelWidth: store.contextPanelWidth || 340 });
+  await atomicWrite(manifestFile(settings), { version: 2, sessionIds: store.sessions.map((session) => session.id), activeSessionId: store.activeSessionId, sidebarOpen: store.sidebarOpen, sidebarWidth: store.sidebarWidth || 268, contextPanelOpen: Boolean(store.contextPanelOpen), contextPanelWidth: store.contextPanelWidth || 340 });
   return { ...store, version: 2 };
 }
 

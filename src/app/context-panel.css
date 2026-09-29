@@ -1,9 +1,10 @@
-/* Desktop drawers reserve space symmetrically so the conversation remains fully visible. */
+/* One grid track per rendered child keeps CSS Grid placement stable as panels open and close. */
 @media (min-width: 761px) {
-  .chat-app.chat-app {
+  .chat-app.chat-app:not(.compact-panels) {
     min-height: 0;
     height: 100dvh;
     overflow: hidden;
+    grid-template-columns: var(--workspace-columns) !important;
   }
 
   .chat-main.chat-main {
@@ -17,6 +18,7 @@
   }
 
   .chat-sidebar.chat-sidebar {
+    position: relative;
     min-height: 0;
     height: 100dvh;
   }
@@ -24,18 +26,6 @@
   .chat-sidebar .session-list {
     flex: 1 1 auto;
     min-height: 0;
-  }
-
-  .chat-app.context-panel-visible.context-panel-visible {
-    grid-template-columns: 0 minmax(0, 1fr) var(--context-panel-width);
-  }
-
-  .chat-app.sidebar-visible.context-panel-visible.context-panel-visible {
-    grid-template-columns: 268px minmax(0, 1fr) var(--context-panel-width);
-  }
-
-  .context-panel-visible.context-panel-visible .composer {
-    right: 0;
   }
 
   .context-panel.context-panel {
@@ -76,6 +66,32 @@
   .context-drawer-resizer:focus-visible {
     outline: 0;
   }
+
+  .sidebar-drawer-resizer {
+    position: absolute;
+    z-index: 3;
+    inset: 0 -6px 0 auto;
+    width: 12px;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  .sidebar-drawer-resizer::after {
+    position: absolute;
+    inset: 0 5px 0 auto;
+    width: 1px;
+    content: "";
+    background: transparent;
+  }
+
+  .sidebar-drawer-resizer:hover::after,
+  .sidebar-drawer-resizer:focus-visible::after {
+    background: var(--violet);
+  }
+
+  .sidebar-drawer-resizer:focus-visible {
+    outline: 0;
+  }
 }
 
 .context-panel {
@@ -111,24 +127,22 @@
   }
 }
 
-/* A three-column workspace needs room for a readable conversation. On smaller
-   desktop/tablet screens both utilities become matching overlay drawers. */
-@media (min-width: 761px) and (max-width: 1179px) {
-  .chat-app.sidebar-visible,
-  .chat-app.context-panel-visible.context-panel-visible,
-  .chat-app.sidebar-visible.context-panel-visible.context-panel-visible {
-    grid-template-columns: 0 minmax(0, 1fr);
+/* The responsive state is derived from the actual widths of both panels, not a
+   fixed breakpoint. That preserves a readable central conversation after drag-resizing. */
+@media (min-width: 761px) {
+  .chat-app.chat-app.compact-panels {
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 
-  .chat-sidebar.chat-sidebar {
+  .chat-app.compact-panels .chat-sidebar.chat-sidebar {
     position: fixed;
     z-index: 15;
     inset: 0 auto 0 0;
-    width: 268px;
+    width: min(92vw, var(--sidebar-width));
     box-shadow: 15px 0 38px rgba(22, 27, 40, .15);
   }
 
-  .context-panel.context-panel {
+  .chat-app.compact-panels .context-panel.context-panel {
     position: fixed;
     z-index: 14;
     inset: 0 0 0 auto;
@@ -136,8 +150,23 @@
     box-shadow: -15px 0 38px rgba(22, 27, 40, .15);
   }
 
-  .chat-app.sidebar-visible.context-panel-visible .chat-sidebar {
+  .chat-app.compact-panels.sidebar-visible.context-panel-visible .chat-sidebar {
     display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .chat-sidebar.chat-sidebar {
+    width: min(92vw, var(--sidebar-width));
+  }
+
+  .sidebar-drawer-resizer {
+    position: absolute;
+    z-index: 16;
+    inset: 0 -6px 0 auto;
+    width: 12px;
+    cursor: col-resize;
+    touch-action: none;
   }
 }
 

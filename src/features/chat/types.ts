@@ -74,6 +74,7 @@ export interface ChatStore {
   sessions: ChatSession[];
   activeSessionId: string;
   sidebarOpen: boolean;
+  sidebarWidth?: number;
   contextPanelOpen?: boolean;
   contextPanelWidth?: number;
 }

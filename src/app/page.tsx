@@ -1,16 +1,19 @@
 "use client";
 
-import { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Check, ChevronDown, Command, Ellipsis, Menu, MessageSquarePlus, PanelLeftClose, PanelRightOpen, Pencil, Pin, Plus, SendHorizontal, Settings2, Sparkles, Trash2, X } from "lucide-react";
 import { ContextPanel } from "@/features/chat/context-panel";
 import { createEmptySession, createWelcomeSession } from "@/features/chat/demo";
 import { MarkdownMessage } from "@/features/chat/markdown-message";
+import { shouldOverlayPanels, workspaceColumns } from "@/features/chat/panel-layout";
 import { ProviderSettings } from "@/features/chat/provider-settings";
 import { loadChatStore, saveChatStore } from "@/features/chat/storage";
 import { StreamRegistry } from "@/features/chat/stream-registry";
 import type { ChatMessage, ChatSession, ChatStore, ModelOption, ProviderSummary, TokenUsage, WorkspaceSettings } from "@/features/chat/types";
 
 const fallbackModels: ModelOption[] = [{ id: "unconfigured:gpt-4.1-mini", label: "gpt-4.1-mini", provider: "No provider configured", providerId: "unconfigured", configured: false }];
+const minSidebarWidth = 220;
+const maxSidebarWidth = 420;
 
 function formatDate(value: string) { return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
 function messagePreview(session: ChatSession) { return [...session.messages].reverse().find((message) => message.role === "user" || message.role === "assistant")?.content || "No messages yet"; }
@@ -21,6 +24,7 @@ export default function ChatPage() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeId, setActiveId] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(268);
   const [contextPanelOpen, setContextPanelOpen] = useState(false);
   const [contextPanelWidth, setContextPanelWidth] = useState(340);
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>();
@@ -29,6 +33,7 @@ export default function ChatPage() {
   const [sessionMenu, setSessionMenu] = useState<{ id: string; x: number; y: number }>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() => typeof window === "undefined" ? 0 : window.innerWidth);
   const [error, setError] = useState<{ message: string; diagnostics?: ChatDiagnostics }>();
   const [streams] = useState(() => new StreamRegistry());
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -50,14 +55,15 @@ export default function ChatPage() {
       if (refreshDue && providerResponse?.providers?.some((provider: ProviderSummary) => provider.kind === "gemini")) void fetch("/api/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "refresh" }) });
       const serverWorkspace = workspaceResponse?.workspace as ChatStore | undefined;
       const restored = serverWorkspace?.sessions.length ? serverWorkspace : undefined;
-      if (restored) { setSessions(restored.sessions); setActiveId(restored.activeSessionId); setSidebarOpen(restored.sidebarOpen); setContextPanelOpen(Boolean(restored.contextPanelOpen)); setContextPanelWidth(restored.contextPanelWidth || 340); }
+      if (restored) { setSessions(restored.sessions); setActiveId(restored.activeSessionId); setSidebarOpen(restored.sidebarOpen); setSidebarWidth(restored.sidebarWidth || 268); setContextPanelOpen(Boolean(restored.contextPanelOpen)); setContextPanelWidth(restored.contextPanelWidth || 340); }
       else { const welcome = createWelcomeSession(availableModels[0].id); setSessions([welcome]); setActiveId(welcome.id); }
       if (!serverWorkspace?.sessions.length && stored?.sessions.length) setBrowserBackup(stored);
       setHydrated(true);
     }
     start();
   }, []);
-  useEffect(() => { if (!hydrated || !activeId) return; const timer = window.setTimeout(() => { const workspace: ChatStore = { version: 2, sessions, activeSessionId: activeId, sidebarOpen, contextPanelOpen, contextPanelWidth }; void saveChatStore(workspace); void fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(workspace) }); }, 350); return () => window.clearTimeout(timer); }, [activeId, contextPanelOpen, contextPanelWidth, hydrated, sessions, sidebarOpen]);
+  useEffect(() => { const updateViewport = () => setViewportWidth(window.innerWidth); updateViewport(); window.addEventListener("resize", updateViewport); return () => window.removeEventListener("resize", updateViewport); }, []);
+  useEffect(() => { if (!hydrated || !activeId) return; const timer = window.setTimeout(() => { const workspace: ChatStore = { version: 2, sessions, activeSessionId: activeId, sidebarOpen, sidebarWidth, contextPanelOpen, contextPanelWidth }; void saveChatStore(workspace); void fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(workspace) }); }, 350); return () => window.clearTimeout(timer); }, [activeId, contextPanelOpen, contextPanelWidth, hydrated, sessions, sidebarOpen, sidebarWidth]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [active?.messages.length, lastMessageContent]);
   useEffect(() => { const element = composerRef.current; if (!element) return; element.style.height = "0px"; element.style.height = `${Math.min(element.scrollHeight, 160)}px`; }, [active?.draft]);
   useEffect(() => () => streams.clear(), [streams]);
@@ -106,7 +112,7 @@ export default function ChatPage() {
     const sentSession: ChatSession = { ...active, title: nextTitle || "New conversation", draft: "", updatedAt: now, messages: nextMessages, context: { archivedMessageIds: active.context?.archivedMessageIds || [], summary: active.context?.summary, timeline: [...(active.context?.timeline || []), { createdAt: now, activeTokens, storedTokens, reason: "message" }] } };
     const sentSessions = sessions.map((session) => session.id === active.id ? sentSession : session);
     setSessions(sentSessions);
-    const workspace: ChatStore = { version: 2, sessions: sentSessions, activeSessionId: activeId, sidebarOpen, contextPanelOpen, contextPanelWidth };
+    const workspace: ChatStore = { version: 2, sessions: sentSessions, activeSessionId: activeId, sidebarOpen, sidebarWidth, contextPanelOpen, contextPanelWidth };
     const controller = streams.start(active.id);
     try {
       const saved = await fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(workspace), signal: controller.signal });
@@ -124,8 +130,12 @@ export default function ChatPage() {
   function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } }
   if (!hydrated || !active) return <main className="chat-loading"><span className="signal-mark"><i /></span><p>Opening your chat space…</p></main>;
 
-  return <main className={`chat-app ${sidebarOpen ? "sidebar-visible" : ""} ${contextPanelOpen ? "context-panel-visible" : ""}`} style={{ "--context-panel-width": `${contextPanelWidth}px` } as CSSProperties}>
+  const overlayPanels = shouldOverlayPanels({ viewportWidth, sidebarOpen, contextPanelOpen, sidebarWidth, contextPanelWidth });
+  const columns = workspaceColumns({ sidebarOpen, contextPanelOpen, sidebarWidth, contextPanelWidth });
+
+  return <main className={`chat-app ${sidebarOpen ? "sidebar-visible" : ""} ${contextPanelOpen ? "context-panel-visible" : ""} ${overlayPanels ? "compact-panels" : ""}`} style={{ "--sidebar-width": `${sidebarWidth}px`, "--context-panel-width": `${contextPanelWidth}px`, "--workspace-columns": columns } as CSSProperties}>
     <aside className="chat-sidebar" aria-label="Chat sessions">
+      <SidebarResizer width={sidebarWidth} onWidthChange={setSidebarWidth}/>
       <div className="sidebar-head"><div className="chat-brand"><span className="signal-mark"><i /></span><span>Signal</span></div><button className="plain-icon" onClick={() => setSidebarOpen(false)} aria-label="Close conversations"><PanelLeftClose size={18}/></button></div>
       <button className="new-chat" onClick={newChat}><MessageSquarePlus size={17}/> New chat <kbd>⌘ N</kbd></button>
       <div className="session-label">CONVERSATIONS <span>{sessions.length}</span></div>
@@ -139,7 +149,7 @@ export default function ChatPage() {
       {error && <div className="chat-error" role="alert"><div><span>{error.message}</span>{error.diagnostics && <small>Provider: {error.diagnostics.provider} · Model/deployment: {error.diagnostics.model} · HTTP {error.diagnostics.status}<br/>Endpoint: {error.diagnostics.endpoint}<br/>Reason: {error.diagnostics.reason}</small>}</div><button onClick={() => setError(undefined)} aria-label="Dismiss error"><X size={15}/></button></div>}
       <form className="composer" onSubmit={sendMessage}><div className="model-row"><div className="model-picker"><button type="button" onClick={() => setModelMenuOpen((open) => !open)} disabled={isStreaming} aria-expanded={modelMenuOpen}><span className={activeModel.configured ? "live-dot" : "idle-dot"}/>{activeModel.label}<ChevronDown size={14}/></button>{modelMenuOpen && <div className="model-menu" role="menu"><b>Choose a model</b>{models.map((model) => <button type="button" role="menuitem" key={model.id} onClick={() => setModel(model)}><span><strong>{model.label}</strong><small>{model.provider}</small></span>{model.id === active.modelId && <Check size={15}/>}</button>)}<footer><button type="button" onClick={() => { setModelMenuOpen(false); setSettingsOpen(true); }}>Manage connection</button></footer></div>}</div><span>{active.messages.length ? `${active.messages.filter((message) => message.role === "user").length} messages` : "Fresh context"}</span></div><div className="composer-input"><textarea ref={composerRef} id="chat-composer" value={active.draft} onChange={(event) => updateDraft(event.target.value)} onKeyDown={onComposerKeyDown} placeholder={activeModel.configured ? "Message the model…" : "Configure a model to send a message"} rows={1} disabled={isStreaming}/>{isStreaming ? <button type="button" className="stop-button" onClick={() => streams.stop(active.id)}>Stop</button> : <button className="send-button" type="submit" disabled={!active.draft.trim()} aria-label="Send message"><SendHorizontal size={17}/></button>}</div><div className="composer-foot"><span><Command size={12}/> Enter to send · Shift Enter for a new line</span><span>Markdown · Local workspace</span></div></form></section>
     {contextPanelOpen && workspaceSettings && (
-      <ContextPanel key={active.id} session={active} settings={workspaceSettings} width={contextPanelWidth} onClose={() => setContextPanelOpen(false)} onWidthChange={setContextPanelWidth} onSessionChange={(next) => updateSession(next.id, () => next)} onSettingsChange={setWorkspaceSettings} canImportBrowserBackup={Boolean(browserBackup)} onImportBrowserBackup={() => { if (!browserBackup) return; setSessions(browserBackup.sessions); setActiveId(browserBackup.activeSessionId); setSidebarOpen(browserBackup.sidebarOpen); setContextPanelOpen(Boolean(browserBackup.contextPanelOpen)); setContextPanelWidth(browserBackup.contextPanelWidth || 340); setBrowserBackup(undefined); void fetch("/api/workspace", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ migratedIndexedDb: true }) }); }}/>
+      <ContextPanel key={active.id} session={active} settings={workspaceSettings} width={contextPanelWidth} onClose={() => setContextPanelOpen(false)} onWidthChange={setContextPanelWidth} onSessionChange={(next) => updateSession(next.id, () => next)} onSettingsChange={setWorkspaceSettings} canImportBrowserBackup={Boolean(browserBackup)} onImportBrowserBackup={() => { if (!browserBackup) return; setSessions(browserBackup.sessions); setActiveId(browserBackup.activeSessionId); setSidebarOpen(browserBackup.sidebarOpen); setSidebarWidth(browserBackup.sidebarWidth || 268); setContextPanelOpen(Boolean(browserBackup.contextPanelOpen)); setContextPanelWidth(browserBackup.contextPanelWidth || 340); setBrowserBackup(undefined); void fetch("/api/workspace", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ migratedIndexedDb: true }) }); }}/>
     )}
     {settingsOpen && <ProviderSettings onClose={() => setSettingsOpen(false)} providers={providers} models={models} onChanged={handleProvidersChanged}/>}
   </main>;
@@ -147,5 +157,14 @@ export default function ChatPage() {
 
 type ChatDiagnostics = { provider: string; model: string; endpoint: string; status: number; reason: string; apiVersion?: string; route: string };
 class ChatRequestError extends Error { constructor(message: string, readonly diagnostics?: ChatDiagnostics) { super(message); } }
+function SidebarResizer({ width, onWidthChange }: { width: number; onWidthChange: (width: number) => void }) {
+  const resize = useRef<{ pointerId: number; startX: number; startWidth: number } | undefined>(undefined);
+  const clamp = (value: number) => Math.max(minSidebarWidth, Math.min(maxSidebarWidth, value));
+  const begin = (event: ReactPointerEvent<HTMLDivElement>) => { event.preventDefault(); resize.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width }; event.currentTarget.setPointerCapture(event.pointerId); };
+  const move = (event: ReactPointerEvent<HTMLDivElement>) => { const current = resize.current; if (!current || current.pointerId !== event.pointerId) return; onWidthChange(clamp(current.startWidth + event.clientX - current.startX)); };
+  const end = (event: ReactPointerEvent<HTMLDivElement>) => { if (resize.current?.pointerId !== event.pointerId) return; resize.current = undefined; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); };
+  const key = (event: KeyboardEvent<HTMLDivElement>) => { const next = event.key === "ArrowLeft" ? width - 16 : event.key === "ArrowRight" ? width + 16 : event.key === "Home" ? minSidebarWidth : event.key === "End" ? maxSidebarWidth : undefined; if (next === undefined) return; event.preventDefault(); onWidthChange(clamp(next)); };
+  return <div className="sidebar-drawer-resizer" role="separator" aria-label="Resize conversations panel" aria-orientation="vertical" aria-valuemin={minSidebarWidth} aria-valuemax={maxSidebarWidth} aria-valuenow={width} tabIndex={0} onPointerDown={begin} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onKeyDown={key}/>;
+}
 function Welcome({ onStart }: { onStart: () => void }) { return <section className="welcome"><span className="welcome-icon"><Sparkles size={21}/></span><span className="crumb">YOUR FIRST CONVERSATION</span><h2>Make a little room to think.</h2><p>Choose a model below, ask a question, and start a new chat whenever you want a fresh context. Your sessions and drafts stay in this browser.</p><div className="welcome-steps"><span><b>1</b> Connect a model</span><span><b>2</b> Ask anything</span><span><b>3</b> Start fresh when needed</span></div><button className="welcome-button" onClick={onStart}>Write a first message <SendHorizontal size={15}/></button></section>; }
 function MessageBubble({ message, modelLabel }: { message: ChatMessage; modelLabel: string }) { return <article className={`message ${message.role} ${message.state ?? ""}`}><div className="message-avatar">{message.role === "user" ? "Y" : <Sparkles size={15}/>}</div><div className="message-body"><header><b>{message.role === "user" ? "You" : modelLabel}</b><time>{message.state === "streaming" ? "Writing…" : new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time></header><MarkdownMessage content={message.content}/>{message.state === "streaming" && <span className="typing-cursor"/>}{message.state === "error" && <small>Response was not completed.</small>}</div></article>; }
