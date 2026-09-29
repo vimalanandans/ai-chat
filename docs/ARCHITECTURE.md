@@ -45,7 +45,7 @@ The server starts on `127.0.0.1`. Route handlers also reject requests whose host
 | Provider connections | Git-ignored `data/providers.json` on the local server | Yes | Written atomically with owner-only file permissions; API responses omit keys. |
 | Application proxy setting | Git-ignored `data/proxy.json` on the local server | No | Persists independently from provider connections. |
 | Provider-form drafts | Browser local storage | No key | One non-secret draft per provider type. |
-| Attachment and tool preferences | Configurable workspace settings | No provider key | A private attachment directory/size limit and a default-deny tool policy; neither enables runtime attachment delivery or tool execution by itself. |
+| Attachments and tool preferences | Configurable workspace settings | No provider key | Verified files are written under the private attachment directory and associated with messages; the default-deny tool policy does not enable tool execution. Provider binary delivery remains an explicit future capability. |
 
 Provider requests and tests resolve API keys on the server only. The browser receives `ProviderSummary` and `ModelOption` values, which intentionally omit keys. A model picker ID contains the provider record ID plus its model/deployment name, preventing a model from silently moving to another connection.
 

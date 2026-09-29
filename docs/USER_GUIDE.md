@@ -24,7 +24,7 @@ Each conversation is an independent session. A session retains its title, model 
 
 Use **Settings** at the bottom of the conversation sidebar for a focused configuration dialog. It has five sections: **Models & connections**, **Network & Proxy**, **Data & Context**, **Attachments**, and **Tools & Agents**. Use its expand control for a full-window configuration view, or minimize it back to the compact dialog; Signal remembers that preference locally.
 
-The Context inspector’s **Data & context settings** link opens the same Data & Context section rather than duplicating configuration. Attachments have a configurable private Unix storage path and size limit. Tools and agents default to read-only file access, with command and network access off; changing those switches records policy only. Attachment sending and executable tools are not enabled in this release.
+The Context inspector’s **Data & context settings** link opens the same Data & Context section rather than duplicating configuration. Attachments have a configurable private Unix storage path and size limit. Use the paperclip or image action in the composer, or paste an image, to store a verified file locally with the message. Tools and agents default to read-only file access, with command and network access off; changing those switches records policy only. Provider-side binary delivery and executable tools are not enabled in this release.
 
 ## Manage context
 

@@ -40,6 +40,6 @@ Signal is a local, single-user client. It is not designed for:
 - shared accounts, roles, organization workspaces, or collaboration;
 - cloud backup or synchronization between browsers and computers;
 - public hosting, remote access, or a multi-tenant API;
-- autonomous agent execution, file-tool execution, attachment delivery, or background workflows. Attachment paths and a default-deny tool policy are configuration seams, not runtime capabilities.
+- autonomous agent execution, file-tool execution, provider-side binary attachment delivery, or background workflows. Files can be stored privately with a message, while the tool policy remains a configuration seam rather than a runtime capability.
 
 Those capabilities would require a new security and persistence model—not merely UI additions. See [Architecture](ARCHITECTURE.md) for the current trust boundaries and extension points.

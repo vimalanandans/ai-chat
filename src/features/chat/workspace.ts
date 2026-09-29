@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { ChatSession, ChatStore, WorkspaceSettings } from "./types";
+import type { ChatAttachment, ChatSession, ChatStore, WorkspaceSettings } from "./types";
 
 const settingsVersion = 1;
 const defaultSessionDirectory = join(process.cwd(), "data", "sessions");
@@ -16,6 +16,13 @@ async function atomicWrite(path: string, value: unknown) {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${randomUUID()}.tmp`;
   await writeFile(temporary, JSON.stringify(value, null, 2), { mode: 0o600 });
+  await rename(temporary, path);
+}
+
+async function atomicWriteBytes(path: string, value: Uint8Array) {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  await writeFile(temporary, value, { mode: 0o600 });
   await rename(temporary, path);
 }
 
@@ -81,6 +88,31 @@ export async function saveArchive(sessionId: string, archive: unknown): Promise<
   const id = randomUUID();
   await atomicWrite(archiveFile(settings, sessionId, id), archive);
   return id;
+}
+
+function safeSegment(value: string) { if (!/^[a-zA-Z0-9_-]+$/u.test(value)) throw new Error("The attachment session identifier is invalid."); return value; }
+function detectedMediaType(bytes: Uint8Array) {
+  const has = (...expected: number[]) => expected.every((value, index) => bytes[index] === value);
+  if (has(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return "image/png";
+  if (has(0xff, 0xd8, 0xff)) return "image/jpeg";
+  if (has(0x47, 0x49, 0x46, 0x38)) return "image/gif";
+  if (has(0x52, 0x49, 0x46, 0x46) && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP") return "image/webp";
+  if (has(0x25, 0x50, 0x44, 0x46, 0x2d)) return "application/pdf";
+  return undefined;
+}
+function safeAttachmentName(name: string) { return name.replace(/[\\/\0]/gu, "_").trim().slice(0, 160) || "attachment"; }
+function validText(bytes: Uint8Array) { try { const sample = new TextDecoder("utf-8", { fatal: true }).decode(bytes.slice(0, 8_192)); return !sample.includes("\0"); } catch { return false; } }
+
+export async function saveAttachment(sessionId: string, file: { name: string; type: string; size: number; bytes: Uint8Array }): Promise<ChatAttachment> {
+  const settings = await getWorkspaceSettings();
+  if (file.size !== file.bytes.byteLength) throw new Error("Attachment size verification failed.");
+  if (!Number.isSafeInteger(file.size) || file.size < 1 || file.size > settings.maxAttachmentBytes) throw new Error(`Attachments must be between 1 byte and ${Math.floor(settings.maxAttachmentBytes / 1024 / 1024)} MB.`);
+  const magicType = detectedMediaType(file.bytes);
+  const textType = /^text\/(plain|markdown|csv)$/u.test(file.type) || /^(application\/json|application\/yaml|application\/x-yaml)$/u.test(file.type);
+  if (!magicType && !(textType && validText(file.bytes))) throw new Error("Only verified images, PDFs, and UTF-8 text files can be attached.");
+  const id = randomUUID(); const mediaType = magicType || file.type; const kind = mediaType.startsWith("image/") ? "image" : "document";
+  await atomicWriteBytes(join(settings.attachmentDirectory, safeSegment(sessionId), id), file.bytes);
+  return { id, name: safeAttachmentName(file.name), mediaType, size: file.size, kind };
 }
 
 export async function clearWorkspaceForTests() {

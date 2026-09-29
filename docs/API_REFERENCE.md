@@ -26,6 +26,10 @@ The server loads the canonical local session, plans its active context, and reje
 
 Reads or saves the canonical workspace, and updates settings such as the absolute session directory, attachment directory and size limit, read-only tool policy, output reserve, thresholds, catalog URL/key, and model overrides. Saving validates private local directories and preserves the existing workspace during relocation. Session data is never returned by provider routes.
 
+### `POST /api/attachments`
+
+Accepts loopback-only multipart form data with `sessionId` and `file`. Signal verifies the target session, size, safe name, and image/PDF magic bytes (or valid UTF-8 text) before storing the file below that session’s configured private attachment directory. The response returns safe attachment metadata; it never exposes a filesystem path.
+
 ### `GET`, `POST /api/context`
 
 `GET` returns a session context snapshot. `POST` refreshes supported model metadata, proposes/generates a compaction summary, or applies an approved compaction and writes its raw-turn archive.

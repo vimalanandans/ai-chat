@@ -8,6 +8,15 @@ export interface ChatMessage {
   state?: "streaming" | "error";
   localOnly?: boolean;
   usage?: TokenUsage;
+  attachments?: ChatAttachment[];
+}
+
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  mediaType: string;
+  size: number;
+  kind: "image" | "document";
 }
 
 export interface TokenUsage {
@@ -40,6 +49,7 @@ export interface ChatSession {
   createdAt: string;
   updatedAt: string;
   draft: string;
+  draftAttachments?: ChatAttachment[];
   messages: ChatMessage[];
   context?: ContextPlan;
 }

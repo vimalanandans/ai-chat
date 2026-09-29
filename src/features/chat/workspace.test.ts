@@ -2,7 +2,7 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { getWorkspaceSettings, loadWorkspace, saveWorkspace, saveWorkspaceSettings } from "./workspace";
+import { getWorkspaceSettings, loadWorkspace, saveAttachment, saveWorkspace, saveWorkspaceSettings } from "./workspace";
 import type { ChatStore } from "./types";
 
 let root = "";
@@ -24,5 +24,14 @@ describe("file-backed workspace", () => {
     expect(loaded?.sidebarWidth).toBe(320);
     expect((await stat(join(directory, "sessions", "a.json"))).mode & 0o777).toBe(0o600);
     expect((await stat(settings.attachmentDirectory)).mode & 0o777).toBe(0o700);
+  });
+
+  it("stores verified attachments below the owning session directory", async () => {
+    root = await mkdtemp(join(tmpdir(), "signal-workspace-")); process.env.SIGNAL_WORKSPACE_SETTINGS = join(root, "settings.json");
+    const directory = join(root, "sessions"); await saveWorkspaceSettings({ sessionDirectory: directory });
+    const attachment = await saveAttachment("session_1", { name: "notes.txt", type: "text/plain", size: 12, bytes: new TextEncoder().encode("hello Signal") });
+    const settings = await getWorkspaceSettings();
+    expect(attachment).toMatchObject({ name: "notes.txt", kind: "document", mediaType: "text/plain" });
+    expect((await stat(join(settings.attachmentDirectory, "session_1", attachment.id))).mode & 0o777).toBe(0o600);
   });
 });

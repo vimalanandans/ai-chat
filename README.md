@@ -14,7 +14,7 @@ It is intentionally a desktop-style local application, not a hosted team service
 
 ## What Signal does not do yet
 
-Signal has no sign-in, cloud synchronization, collaboration, executable agents, or hosted deployment mode. Attachment storage and tool-access policy can be configured now; sending attachments and executing tools remain deliberately disabled until their provider-aware runtime is added. It should only run on a computer you trust.
+Signal has no sign-in, cloud synchronization, collaboration, executable agents, or hosted deployment mode. Files and pasted images can be stored privately with a message; binary multimodal delivery to providers and tool execution remain deliberately disabled until their provider-aware runtime is added. It should only run on a computer you trust.
 
 ## Start here
 
