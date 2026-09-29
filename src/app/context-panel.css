@@ -1,11 +1,79 @@
-/* Desktop keeps context controls visible while the conversation scrolls. */
+/* A real desktop drawer overlays the chat instead of narrowing or moving it. */
 @media (min-width: 761px) {
-  .context-panel {
-    align-self: start;
-    position: sticky;
-    top: 0;
-    height: 100vh;
+  .chat-app.chat-app {
+    min-height: 0;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .chat-main.chat-main {
+    min-height: 0;
+  }
+
+  .messages.messages {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .chat-sidebar.chat-sidebar {
+    min-height: 0;
+    height: 100dvh;
+  }
+
+  .chat-sidebar .session-list {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .chat-app.context-panel-visible.context-panel-visible {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+
+  .chat-app.sidebar-visible.context-panel-visible.context-panel-visible {
+    grid-template-columns: 268px minmax(0, 1fr);
+  }
+
+  .context-panel-visible.context-panel-visible .composer {
+    right: 0;
+  }
+
+  .context-panel.context-panel {
+    position: fixed;
+    z-index: 12;
+    inset: 0 0 0 auto;
+    min-height: 0;
+    height: 100dvh;
     overscroll-behavior: contain;
+    overflow-x: hidden;
+    overflow-y: auto;
+    box-shadow: -15px 0 38px rgba(22, 27, 40, .15);
+  }
+
+  .context-drawer-resizer {
+    position: absolute;
+    z-index: 1;
+    inset: 0 auto 0 -6px;
+    width: 12px;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  .context-drawer-resizer::after {
+    position: absolute;
+    inset: 0 auto 0 5px;
+    width: 1px;
+    content: "";
+    background: transparent;
+  }
+
+  .context-drawer-resizer:hover::after,
+  .context-drawer-resizer:focus-visible::after {
+    background: var(--violet);
+  }
+
+  .context-drawer-resizer:focus-visible {
+    outline: 0;
   }
 }
 

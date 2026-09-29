@@ -1,17 +1,26 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { Archive, ChevronRight, Database, PanelRightClose, RefreshCw, Save, Sparkles } from "lucide-react";
 import type { ChatSession, ContextSnapshot, WorkspaceSettings } from "./types";
 
 type Props = { session: ChatSession; settings: WorkspaceSettings; width: number; onClose: () => void; onWidthChange: (width: number) => void; onSessionChange: (session: ChatSession) => void; onSettingsChange: (settings: WorkspaceSettings) => void; canImportBrowserBackup: boolean; onImportBrowserBackup: () => void };
 function count(value?: number) { return value === undefined ? "—" : new Intl.NumberFormat().format(Math.max(0, Math.round(value))); }
 function status(snapshot?: ContextSnapshot) { return snapshot?.health || "unknown"; }
+const minDrawerWidth = 280;
+const maxDrawerWidth = 520;
+function clampDrawerWidth(value: number) { return Math.max(minDrawerWidth, Math.min(maxDrawerWidth, value)); }
 
 export function ContextPanel({ session, settings, width, onClose, onWidthChange, onSessionChange, onSettingsChange, canImportBrowserBackup, onImportBrowserBackup }: Props) {
   const [snapshot, setSnapshot] = useState<ContextSnapshot>();
   const [loading, setLoading] = useState(false); const [error, setError] = useState<string>();
   const [metadataStatus, setMetadataStatus] = useState<string>();
+  const resize = useRef<{ pointerId: number; startX: number; startWidth: number } | undefined>(undefined);
+  useEffect(() => {
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape" && !event.defaultPrevented) onClose(); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
   const [draftSummary, setDraftSummary] = useState(""); const [candidateIds, setCandidateIds] = useState<string[]>([]); const [settingsOpen, setSettingsOpen] = useState(false);
   const refresh = async () => { const response = await fetch(`/api/context?sessionId=${encodeURIComponent(session.id)}`); const data = await response.json() as { snapshot?: ContextSnapshot; error?: string }; if (response.ok && data.snapshot) setSnapshot(data.snapshot); else setError(data.error || "Could not calculate context."); };
   useEffect(() => { let cancelled = false; void (async () => { const response = await fetch(`/api/context?sessionId=${encodeURIComponent(session.id)}`); const data = await response.json() as { snapshot?: ContextSnapshot; error?: string }; if (cancelled) return; if (response.ok && data.snapshot) setSnapshot(data.snapshot); else setError(data.error || "Could not calculate context."); })(); return () => { cancelled = true; }; }, [session.id, session.updatedAt, session.draft, session.modelId]);
@@ -35,8 +44,30 @@ export function ContextPanel({ session, settings, width, onClose, onWidthChange,
     try { const numberOrUndefined = (name: string) => { const value = String(form.get(name) || "").trim(); return value ? Number(value) : undefined; }; const override = { contextWindow: numberOrUndefined("contextWindow"), maxInputTokens: numberOrUndefined("maxInputTokens"), maxOutputTokens: numberOrUndefined("maxOutputTokens") }; const modelOverrides = { ...settings.modelOverrides }; if (Object.values(override).some((value) => value !== undefined)) modelOverrides[session.modelId] = override; else delete modelOverrides[session.modelId]; const response = await fetch("/api/workspace", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionDirectory: form.get("sessionDirectory"), reservedOutputTokens: Number(form.get("reserve")), warningPercent: Number(form.get("warning")), criticalPercent: Number(form.get("critical")), catalogUrl: form.get("catalogUrl"), catalogPublicKey: form.get("catalogPublicKey"), modelOverrides }) }); const data = await response.json() as { settings?: WorkspaceSettings; error?: string }; if (!response.ok || !data.settings) throw new Error(data.error || "Could not save context settings."); onSettingsChange(data.settings); setSettingsOpen(false); await refresh(); }
     catch (caught) { setError(caught instanceof Error ? caught.message : "Could not save context settings."); } finally { setLoading(false); }
   }
+  function beginResize(event: ReactPointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    resize.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+  function moveResize(event: ReactPointerEvent<HTMLDivElement>) {
+    const current = resize.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    onWidthChange(clampDrawerWidth(current.startWidth + current.startX - event.clientX));
+  }
+  function endResize(event: ReactPointerEvent<HTMLDivElement>) {
+    if (resize.current?.pointerId !== event.pointerId) return;
+    resize.current = undefined;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+  function resizeWithKeyboard(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const next = event.key === "ArrowLeft" ? width + 16 : event.key === "ArrowRight" ? width - 16 : event.key === "Home" ? minDrawerWidth : event.key === "End" ? maxDrawerWidth : undefined;
+    if (next === undefined) return;
+    event.preventDefault();
+    onWidthChange(clampDrawerWidth(next));
+  }
   const percent = snapshot?.usablePromptTokens ? Math.min(100, Math.round(snapshot.activeTokens / snapshot.usablePromptTokens * 100)) : 0;
-  return <aside className="context-panel" style={{ width }} aria-label="Context status">
+  return <aside id="context-drawer" className="context-panel" style={{ width }} aria-label="Context status">
+    <div className="context-drawer-resizer" role="separator" aria-label="Resize context drawer" aria-orientation="vertical" aria-valuemin={minDrawerWidth} aria-valuemax={maxDrawerWidth} aria-valuenow={width} tabIndex={0} onPointerDown={beginResize} onPointerMove={moveResize} onPointerUp={endResize} onPointerCancel={endResize} onKeyDown={resizeWithKeyboard}/>
     <header><div><span className="crumb">CONTEXT ENGINE</span><h2>Session context</h2></div><button className="plain-icon" onClick={onClose} aria-label="Close context panel"><PanelRightClose size={18}/></button></header>
     <section className={`context-meter ${status(snapshot)}`}><div><b>{snapshot?.usablePromptTokens === undefined ? "Limit unknown" : `${percent}% of active budget`}</b><span>{count(snapshot?.activeTokens)} tokens · {count(snapshot?.activeWords)} words</span></div><div className="context-track"><i style={{ width: `${percent}%` }}/></div><small>{snapshot?.usablePromptTokens === undefined ? "Gemini refreshes from its API; other providers need a verified catalog or a model override to validate sends." : `${count(snapshot.remainingTokens)} tokens remain after a ${count(snapshot.reservedOutputTokens)}-token output reserve.`}</small></section>
     <section className="context-grid"><Metric label="Active prompt" value={count(snapshot?.activeTokens)} detail="estimated next send"/><Metric label="Stored history" value={count(snapshot?.storedTokens)} detail={`${count(snapshot?.storedWords)} words`}/><Metric label="Archived" value={count(snapshot?.archivedTokens)} detail="kept locally"/><Metric label="Last measured" value={count(snapshot?.measuredUsage?.inputTokens)} detail={snapshot?.measuredUsage ? `+ ${count(snapshot.measuredUsage.outputTokens)} output` : "provider usage unavailable"}/></section>
