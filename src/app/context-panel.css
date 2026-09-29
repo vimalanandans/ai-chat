@@ -1,4 +1,4 @@
-/* A real desktop drawer overlays the chat instead of narrowing or moving it. */
+/* Desktop drawers reserve space symmetrically so the conversation remains fully visible. */
 @media (min-width: 761px) {
   .chat-app.chat-app {
     min-height: 0;
@@ -27,11 +27,11 @@
   }
 
   .chat-app.context-panel-visible.context-panel-visible {
-    grid-template-columns: 0 minmax(0, 1fr);
+    grid-template-columns: 0 minmax(0, 1fr) var(--context-panel-width);
   }
 
   .chat-app.sidebar-visible.context-panel-visible.context-panel-visible {
-    grid-template-columns: 268px minmax(0, 1fr);
+    grid-template-columns: 268px minmax(0, 1fr) var(--context-panel-width);
   }
 
   .context-panel-visible.context-panel-visible .composer {
@@ -39,15 +39,16 @@
   }
 
   .context-panel.context-panel {
-    position: fixed;
-    z-index: 12;
-    inset: 0 0 0 auto;
+    position: relative;
+    z-index: auto;
+    inset: auto;
+    align-self: stretch;
     min-height: 0;
     height: 100dvh;
     overscroll-behavior: contain;
-    overflow-x: hidden;
+    overflow-x: auto;
     overflow-y: auto;
-    box-shadow: -15px 0 38px rgba(22, 27, 40, .15);
+    box-shadow: none;
   }
 
   .context-drawer-resizer {
@@ -74,6 +75,69 @@
 
   .context-drawer-resizer:focus-visible {
     outline: 0;
+  }
+}
+
+.context-panel {
+  container-type: inline-size;
+}
+
+.context-panel .context-meter span,
+.context-panel .context-meter small,
+.context-panel .context-model b {
+  overflow-wrap: anywhere;
+}
+
+@container (max-width: 380px) {
+  .context-panel.context-panel {
+    padding-inline: 12px;
+  }
+
+  .context-panel .context-meter > div:first-child,
+  .context-panel .context-model > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .context-panel .context-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .context-panel .context-model b {
+    max-width: 100%;
+    text-align: left;
+    white-space: normal;
+  }
+}
+
+/* A three-column workspace needs room for a readable conversation. On smaller
+   desktop/tablet screens both utilities become matching overlay drawers. */
+@media (min-width: 761px) and (max-width: 1179px) {
+  .chat-app.sidebar-visible,
+  .chat-app.context-panel-visible.context-panel-visible,
+  .chat-app.sidebar-visible.context-panel-visible.context-panel-visible {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+
+  .chat-sidebar.chat-sidebar {
+    position: fixed;
+    z-index: 15;
+    inset: 0 auto 0 0;
+    width: 268px;
+    box-shadow: 15px 0 38px rgba(22, 27, 40, .15);
+  }
+
+  .context-panel.context-panel {
+    position: fixed;
+    z-index: 14;
+    inset: 0 0 0 auto;
+    width: min(92vw, var(--context-panel-width)) !important;
+    box-shadow: -15px 0 38px rgba(22, 27, 40, .15);
+  }
+
+  .chat-app.sidebar-visible.context-panel-visible .chat-sidebar {
+    display: none;
   }
 }
 
