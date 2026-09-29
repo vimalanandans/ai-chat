@@ -14,7 +14,7 @@ Signal gives a single person a dependable local place to think with AI: conversa
 
 | Principle | Product behavior |
 | --- | --- |
-| Calm by default | The composer and current conversation are central; connection settings are a focused overlay. |
+| Calm by default | The composer and current conversation are central; all configuration sits in one focused Settings Hub. |
 | Explicit model choice | Every session has an exact saved connection/model pair rather than an ambiguous provider default. |
 | Local ownership | Browser data stays in the browser; provider keys remain on the local server. |
 | Test before trust | Connections can be tested before saving, with safe diagnostics when a provider rejects a request. |
@@ -40,6 +40,6 @@ Signal is a local, single-user client. It is not designed for:
 - shared accounts, roles, organization workspaces, or collaboration;
 - cloud backup or synchronization between browsers and computers;
 - public hosting, remote access, or a multi-tenant API;
-- autonomous agent execution, file tools, or background workflows.
+- autonomous agent execution, file-tool execution, attachment delivery, or background workflows. Attachment paths and a default-deny tool policy are configuration seams, not runtime capabilities.
 
 Those capabilities would require a new security and persistence model—not merely UI additions. See [Architecture](ARCHITECTURE.md) for the current trust boundaries and extension points.

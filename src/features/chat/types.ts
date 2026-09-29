@@ -108,6 +108,13 @@ export interface ContextSnapshot {
 
 export interface WorkspaceSettings {
   sessionDirectory: string;
+  attachmentDirectory: string;
+  maxAttachmentBytes: number;
+  toolPolicy: {
+    access: "read-only" | "read-write";
+    allowCommands: boolean;
+    allowNetwork: boolean;
+  };
   reservedOutputTokens: number;
   warningPercent: number;
   criticalPercent: number;

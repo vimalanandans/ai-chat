@@ -9,7 +9,7 @@ const defaultCatalogUrl = "https://github.com/vimalanandans/ai-chat/releases/lat
 
 function settingsFile() { return process.env.SIGNAL_WORKSPACE_SETTINGS || join(process.cwd(), "data", "workspace-settings.json"); }
 export function defaultWorkspaceSettings(): WorkspaceSettings {
-  return { sessionDirectory: defaultSessionDirectory, reservedOutputTokens: 2048, warningPercent: 75, criticalPercent: 90, catalogUrl: defaultCatalogUrl, catalogPublicKey: "", modelOverrides: {}, metadataCache: {} };
+  return { sessionDirectory: defaultSessionDirectory, attachmentDirectory: join(defaultSessionDirectory, "attachments"), maxAttachmentBytes: 10 * 1024 * 1024, toolPolicy: { access: "read-only", allowCommands: false, allowNetwork: false }, reservedOutputTokens: 2048, warningPercent: 75, criticalPercent: 90, catalogUrl: defaultCatalogUrl, catalogPublicKey: "", modelOverrides: {}, metadataCache: {} };
 }
 
 async function atomicWrite(path: string, value: unknown) {
@@ -22,18 +22,23 @@ async function atomicWrite(path: string, value: unknown) {
 export async function getWorkspaceSettings(): Promise<WorkspaceSettings> {
   try {
     const parsed = JSON.parse(await readFile(settingsFile(), "utf8")) as Partial<WorkspaceSettings>;
-    return { ...defaultWorkspaceSettings(), ...parsed, modelOverrides: parsed.modelOverrides || {}, metadataCache: parsed.metadataCache || {} };
+    return { ...defaultWorkspaceSettings(), ...parsed, toolPolicy: { ...defaultWorkspaceSettings().toolPolicy, ...parsed.toolPolicy }, modelOverrides: parsed.modelOverrides || {}, metadataCache: parsed.metadataCache || {} };
   } catch { return defaultWorkspaceSettings(); }
 }
 
 export async function saveWorkspaceSettings(input: Partial<WorkspaceSettings>): Promise<WorkspaceSettings> {
   const current = await getWorkspaceSettings();
-  const next: WorkspaceSettings = { ...current, ...input, modelOverrides: input.modelOverrides || current.modelOverrides, metadataCache: input.metadataCache || current.metadataCache };
+  const attachmentDirectory = input.attachmentDirectory ?? (input.sessionDirectory && current.attachmentDirectory === join(current.sessionDirectory, "attachments") ? join(input.sessionDirectory, "attachments") : current.attachmentDirectory);
+  const next: WorkspaceSettings = { ...current, ...input, attachmentDirectory, modelOverrides: input.modelOverrides || current.modelOverrides, metadataCache: input.metadataCache || current.metadataCache };
   if (!isAbsolute(next.sessionDirectory)) throw new Error("The session directory must be an absolute Unix path.");
+  if (!isAbsolute(next.attachmentDirectory)) throw new Error("The attachment directory must be an absolute Unix path.");
+  if (!Number.isInteger(next.maxAttachmentBytes) || next.maxAttachmentBytes < 1 || next.maxAttachmentBytes > 100 * 1024 * 1024) throw new Error("Attachment size must be between 1 byte and 100 MB.");
   if (!Number.isInteger(next.reservedOutputTokens) || next.reservedOutputTokens < 1) throw new Error("Reserve at least one output token.");
   if (!Number.isInteger(next.warningPercent) || !Number.isInteger(next.criticalPercent) || next.warningPercent < 1 || next.warningPercent >= next.criticalPercent || next.criticalPercent > 99) throw new Error("Warning and critical thresholds must be ascending percentages below 100.");
   for (const override of Object.values(next.modelOverrides)) for (const limit of [override.contextWindow, override.maxInputTokens, override.maxOutputTokens]) if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) throw new Error("Model context limits must be positive whole numbers.");
+  if (next.toolPolicy.access !== "read-only" && next.toolPolicy.access !== "read-write") throw new Error("Tool access must be read-only or read-write.");
   await mkdir(next.sessionDirectory, { recursive: true, mode: 0o700 });
+  await mkdir(next.attachmentDirectory, { recursive: true, mode: 0o700 });
   if (next.sessionDirectory !== current.sessionDirectory) {
     const existing = await loadWorkspaceFromSettings(current);
     if (existing) await saveWorkspaceAt(next, existing);

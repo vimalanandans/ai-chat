@@ -41,7 +41,7 @@ Never print or commit proxy credentials, environment values, or shell history co
 - Deleting a provider connection does not delete browser chat history. Clearing browser data does not delete server-side provider connections.
 - Moving the configured session directory copies the active workspace first and leaves the old directory as a recovery copy.
 - A signed model catalog must use HTTPS and a base64 SPKI public key. Invalid, expired, or unavailable catalogs leave the last verified metadata cache untouched.
-- To remove a local provider key, delete that connection in **Model connection** and securely remove any backup that contained the old provider file.
+- To remove a local provider key, delete that connection in **Settings → Models & connections** and securely remove any backup that contained the old provider file.
 
 ## Troubleshooting
 

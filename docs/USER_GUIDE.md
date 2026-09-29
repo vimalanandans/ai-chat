@@ -3,7 +3,7 @@
 ## Your first five minutes
 
 1. Run `npm run dev` and open the local URL shown in the terminal.
-2. In the sidebar, select **Model connection**.
+2. In the sidebar, select **Settings**, then **Models & connections**.
 3. Choose the connection type that matches the provider API, fill in the form, and run **Test connection**.
 4. Review the result, then select **Save connection**.
 5. Use the model picker above the composer to select the saved connection/model pair and send a message.
@@ -18,18 +18,25 @@ Each conversation is an independent session. A session retains its title, model 
 - Select an item in **Conversations** to return to it. Its draft and model selection reappear.
 - You can move between sessions while a response is streaming. Select that streaming session to stop its response; stopping it does not stop another session.
 - The first message becomes the session title. Starting a new chat never deletes an existing chat.
+- Right-click a session to rename it, move it to the top, or delete it. Rename opens an in-app dialog rather than a browser prompt. Session rows stay compact; hovering a truncated title reveals the full name.
+
+## Settings Hub
+
+Use **Settings** at the bottom of the conversation sidebar for a focused configuration dialog. It has five sections: **Models & connections**, **Network & Proxy**, **Data & Context**, **Attachments**, and **Tools & Agents**. Use its expand control for a full-window configuration view, or minimize it back to the compact dialog; Signal remembers that preference locally.
+
+The Context inspector’s **Data & context settings** link opens the same Data & Context section rather than duplicating configuration. Attachments have a configurable private Unix storage path and size limit. Tools and agents default to read-only file access, with command and network access off; changing those switches records policy only. Attachment sending and executable tools are not enabled in this release.
 
 ## Manage context
 
 Open the top-bar **Context** control to dock the session inspector on the right. It shows the estimated next-send prompt footprint in tokens and words, stored and archived history, output reserve, remaining capacity, model metadata source, and the latest provider-measured token usage.
 
-Signal warns at 75% of a verified usable prompt budget, marks 90% as critical, and blocks a send at 100%. These defaults and the reserved output tokens are configurable in **Data & context settings**. An unknown or custom model is shown as unverified rather than assigned an invented limit; add a model override or configure a signed catalog to enforce a budget.
+Signal warns at 75% of a verified usable prompt budget, marks 90% as critical, and blocks a send at 100%. These defaults and the reserved output tokens are configurable in **Settings → Data & Context**. An unknown or custom model is shown as unverified rather than assigned an invented limit; add a model override for the currently selected model or configure a signed catalog to enforce a budget.
 
 Choose **Generate summary** only when you are ready to send the marked older history to the session’s selected provider. Review and edit the generated continuity summary, then apply it. Signal preserves the original turns in a local archive and keeps the approved summary plus the newest turns active. It never compacts or deletes history automatically.
 
 ### Move or import session data
 
-The default workspace is `data/sessions`. Enter an absolute Unix directory in **Data & context settings** to copy the canonical workspace there; the previous location remains as a recovery copy. On a first run with legacy browser-only chats, use **Import browser backup**. The browser copy remains untouched until you choose to clear it yourself.
+The default workspace is `data/sessions`. Enter an absolute Unix directory in **Settings → Data & Context** to copy the canonical workspace there; the previous location remains as a recovery copy. On a first run with legacy browser-only chats, use **Import browser backup**. The browser copy remains untouched until you choose to clear it yourself.
 
 ## Add a provider connection
 
@@ -61,7 +68,7 @@ Press Enter to send and Shift+Enter for a new line. The composer expands up to i
 
 ## Route provider traffic through a proxy
 
-Open **Model connection → Network routing** to configure an application-only proxy. Test it before saving. When enabled, it applies to provider tests and streamed chats, not to browser storage or other applications.
+Open **Network & Proxy** from Settings, or use the dedicated **Network & Proxy** link in the sidebar, to configure an application-only proxy. Test it before saving. When enabled, it applies to provider tests and streamed chats, not to browser storage or other applications.
 
 On macOS, the same pane offers a separate system-wide proxy action for a selected network service. It changes HTTP and HTTPS routing for all applications on that service, so Signal asks for confirmation. Disable that setting from the same pane when it is no longer needed.
 

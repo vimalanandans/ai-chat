@@ -2,7 +2,7 @@
 
 Signal is a calm, local-first chat workspace for one person using one or more AI providers. It keeps each conversation, its selected model, unfinished draft, and model-aware context plan separate—so changing models or starting a new thought does not erase the work already in progress.
 
-It is intentionally a desktop-style local application, not a hosted team service. The browser owns conversation history; the local Next.js server owns provider credentials and performs provider requests.
+It is intentionally a desktop-style local application, not a hosted team service. The local Next.js server owns the canonical session workspace and provider credentials; the browser is its focused desktop-style interface.
 
 ## What Signal is for
 
@@ -14,7 +14,7 @@ It is intentionally a desktop-style local application, not a hosted team service
 
 ## What Signal does not do yet
 
-Signal has no sign-in, cloud synchronization, collaboration, file attachments, background agents, or hosted deployment mode. It should only run on a computer you trust.
+Signal has no sign-in, cloud synchronization, collaboration, executable agents, or hosted deployment mode. Attachment storage and tool-access policy can be configured now; sending attachments and executing tools remain deliberately disabled until their provider-aware runtime is added. It should only run on a computer you trust.
 
 ## Start here
 
@@ -25,7 +25,7 @@ npm run dev
 
 Open the loopback URL printed by Next.js, then:
 
-1. Select **Model connection** in the conversation sidebar.
+1. Select **Settings** in the conversation sidebar, then open **Models & connections**.
 2. Choose the provider protocol, enter a connection name, endpoint, API key, and one or more model IDs or Azure deployment names.
 3. Run **Test connection**, review the result, and save the connection.
 4. Choose the connection/model pair in the composer and send a message.
@@ -48,7 +48,9 @@ Create a separate saved connection for every endpoint/key combination, including
 
 ## Privacy and routing
 
-Sessions, selected session, drafts, context summaries, and layout state are stored in a local file workspace. By default it is `data/sessions/`; change it from **Context → Data & context settings**. Each session is a separate private JSON file, with a workspace manifest and immutable compaction archives. The first-run **Import browser backup** action can copy legacy IndexedDB chats without clearing the browser data.
+Sessions, selected session, drafts, context summaries, and layout state are stored in a local file workspace. By default it is `data/sessions/`; change it from **Settings → Data & Context** or follow the link from the Context inspector. Each session is a separate private JSON file, with a workspace manifest and immutable compaction archives. The first-run **Import browser backup** action can copy legacy IndexedDB chats without clearing the browser data.
+
+The Settings Hub keeps configuration out of the conversation: use **Models & connections**, **Network & Proxy**, **Data & Context**, **Attachments**, and **Tools & Agents** from one compact dialog. Its expand button provides a focused full-window view. Attachment paths and upload limits are local workspace preferences; the tool policy defaults to read-only with command and network access disabled.
 
 Select the context button in the top bar to inspect the active prompt’s estimated tokens and words, stored versus archived history, output reserve, remaining model budget, and the most recent provider-measured usage. Estimates are deliberately labeled; provider usage is shown only when a provider reports it. Context compaction is explicit: Signal generates an editable continuity summary with the selected model, then archives the replaced raw turns only after your approval.
 

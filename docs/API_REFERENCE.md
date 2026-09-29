@@ -24,7 +24,7 @@ The server loads the canonical local session, plans its active context, and reje
 
 ### `GET`, `PUT`, `PATCH /api/workspace`
 
-Reads or saves the canonical workspace, and updates context settings such as the absolute session directory, output reserve, thresholds, catalog URL/key, and model overrides. Session data is never returned by provider routes.
+Reads or saves the canonical workspace, and updates settings such as the absolute session directory, attachment directory and size limit, read-only tool policy, output reserve, thresholds, catalog URL/key, and model overrides. Saving validates private local directories and preserves the existing workspace during relocation. Session data is never returned by provider routes.
 
 ### `GET`, `POST /api/context`
 

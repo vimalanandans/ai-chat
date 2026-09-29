@@ -22,10 +22,11 @@ The server starts on `127.0.0.1`. Route handlers also reject requests whose host
 
 | Module | Responsibility |
 | --- | --- |
-| `src/app/page.tsx` | Session selection, model selection, composer, streaming UI, and safe error presentation. |
+| `src/app/page.tsx` | Session selection, model selection, composer, streaming UI, session menu/rename dialog, and safe error presentation. |
+| `src/features/chat/settings-hub.tsx` | Focused Settings Hub navigation, compact/full-window preference, context, attachment, and tool-policy forms. |
 | `src/features/chat/workspace.ts` | Canonical private Unix workspace: settings, atomic manifest/session writes, relocation, and archives. |
 | `src/features/chat/context-engine.ts` | Model-aware active-prompt construction, conservative forecasts, reserve budgets, health states, and compaction proposals. |
-| `src/features/chat/context-panel.tsx` | Toggleable right-side inspector, settings, metadata refresh, and explicit reviewed compaction. |
+| `src/features/chat/context-panel.tsx` | Toggleable right-side inspector, metadata refresh, explicit reviewed compaction, and a direct link to the Settings Hub. |
 | `src/features/chat/stream-registry.ts` | Owns active abort controllers by session so concurrent streams cannot overwrite one another. |
 | `src/features/chat/runtime.ts` | Provider registry, key-safe summaries, atomic local persistence, request helpers, connection tests, and application-proxy transport. |
 | `src/features/chat/provider-settings.tsx` | Connection creation, testing, editing, and per-provider non-secret drafts. |
@@ -44,6 +45,7 @@ The server starts on `127.0.0.1`. Route handlers also reject requests whose host
 | Provider connections | Git-ignored `data/providers.json` on the local server | Yes | Written atomically with owner-only file permissions; API responses omit keys. |
 | Application proxy setting | Git-ignored `data/proxy.json` on the local server | No | Persists independently from provider connections. |
 | Provider-form drafts | Browser local storage | No key | One non-secret draft per provider type. |
+| Attachment and tool preferences | Configurable workspace settings | No provider key | A private attachment directory/size limit and a default-deny tool policy; neither enables runtime attachment delivery or tool execution by itself. |
 
 Provider requests and tests resolve API keys on the server only. The browser receives `ProviderSummary` and `ModelOption` values, which intentionally omit keys. A model picker ID contains the provider record ID plus its model/deployment name, preventing a model from silently moving to another connection.
 
