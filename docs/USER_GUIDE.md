@@ -12,12 +12,24 @@ The connection form and the chat are intentionally separate: testing or editing 
 
 ## Work with sessions
 
-Each conversation is an independent session. A session retains its title, model selection, messages, and unfinished draft in this browser.
+Each conversation is an independent session. A session retains its title, model selection, messages, unfinished draft, and context plan in the configured local workspace.
 
 - Select **New chat** for a fresh context. It starts with the current model selection.
 - Select an item in **Conversations** to return to it. Its draft and model selection reappear.
 - You can move between sessions while a response is streaming. Select that streaming session to stop its response; stopping it does not stop another session.
 - The first message becomes the session title. Starting a new chat never deletes an existing chat.
+
+## Manage context
+
+Open the top-bar **Context** control to dock the session inspector on the right. It shows the estimated next-send prompt footprint in tokens and words, stored and archived history, output reserve, remaining capacity, model metadata source, and the latest provider-measured token usage.
+
+Signal warns at 75% of a verified usable prompt budget, marks 90% as critical, and blocks a send at 100%. These defaults and the reserved output tokens are configurable in **Data & context settings**. An unknown or custom model is shown as unverified rather than assigned an invented limit; add a model override or configure a signed catalog to enforce a budget.
+
+Choose **Generate summary** only when you are ready to send the marked older history to the session’s selected provider. Review and edit the generated continuity summary, then apply it. Signal preserves the original turns in a local archive and keeps the approved summary plus the newest turns active. It never compacts or deletes history automatically.
+
+### Move or import session data
+
+The default workspace is `data/sessions`. Enter an absolute Unix directory in **Data & context settings** to copy the canonical workspace there; the previous location remains as a recovery copy. On a first run with legacy browser-only chats, use **Import browser backup**. The browser copy remains untouched until you choose to clear it yourself.
 
 ## Add a provider connection
 

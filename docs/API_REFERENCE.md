@@ -10,18 +10,25 @@ All JSON errors use `{ "error": "…" }`; provider test and chat errors may also
 
 ### `POST /api/chat`
 
-Streams text from the selected saved provider/model.
+Streams typed server-sent events from the selected saved provider/model and the server-built active session context.
 
 ```json
 {
-  "model": "provider-record-id:model-or-deployment",
-  "messages": [
-    { "role": "user", "content": "Hello" }
-  ]
+  "sessionId": "local-session-id"
 }
 ```
 
-The request must include a configured model and one to 100 messages. Message content is capped at 24,000 characters. A successful response is a UTF-8 `text/plain` stream. A provider failure includes safe diagnostics with provider type, model/deployment, endpoint, HTTP status, reason, API version when relevant, and route.
+The server loads the canonical local session, plans its active context, and rejects sends above a verified usable budget. A successful response is an SSE stream with `delta`, optional `usage`, and `complete` events. A provider failure includes safe diagnostics with provider type, model/deployment, endpoint, HTTP status, reason, API version when relevant, and route.
+
+## Workspace and context
+
+### `GET`, `PUT`, `PATCH /api/workspace`
+
+Reads or saves the canonical workspace, and updates context settings such as the absolute session directory, output reserve, thresholds, catalog URL/key, and model overrides. Session data is never returned by provider routes.
+
+### `GET`, `POST /api/context`
+
+`GET` returns a session context snapshot. `POST` refreshes supported model metadata, proposes/generates a compaction summary, or applies an approved compaction and writes its raw-turn archive.
 
 ### `GET /api/models`
 

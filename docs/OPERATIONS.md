@@ -34,10 +34,13 @@ Never print or commit proxy credentials, environment values, or shell history co
 
 ## Data handling and recovery
 
-- Back up the browser profile if chat history needs to survive browser reset or device migration.
+- Back up the configured session workspace (the manifest, `sessions/`, and `archives/`) if chat history needs to survive device migration. Files contain chat content and are created with private permissions; use an encrypted, access-controlled backup.
+- Browser IndexedDB is only a legacy import source after this release. Do not clear it until an explicit import has been verified.
 - Back up `data/providers.json` only through an encrypted, access-controlled mechanism; it contains provider keys.
 - Do not commit `data/`, `.env.local`, browser-storage exports, or diagnostic logs that could contain sensitive content.
 - Deleting a provider connection does not delete browser chat history. Clearing browser data does not delete server-side provider connections.
+- Moving the configured session directory copies the active workspace first and leaves the old directory as a recovery copy.
+- A signed model catalog must use HTTPS and a base64 SPKI public key. Invalid, expired, or unavailable catalogs leave the last verified metadata cache untouched.
 - To remove a local provider key, delete that connection in **Model connection** and securely remove any backup that contained the old provider file.
 
 ## Troubleshooting

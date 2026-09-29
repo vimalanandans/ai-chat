@@ -1,12 +1,12 @@
 # Signal
 
-Signal is a calm, local-first chat workspace for one person using one or more AI providers. It keeps each conversation, its selected model, and its unfinished draft separate—so changing models or starting a new thought does not erase the work already in progress.
+Signal is a calm, local-first chat workspace for one person using one or more AI providers. It keeps each conversation, its selected model, unfinished draft, and model-aware context plan separate—so changing models or starting a new thought does not erase the work already in progress.
 
 It is intentionally a desktop-style local application, not a hosted team service. The browser owns conversation history; the local Next.js server owns provider credentials and performs provider requests.
 
 ## What Signal is for
 
-- Keep independent, persistent chat sessions in one focused workspace.
+- Keep independent, persistent chat sessions in a configurable local Unix workspace.
 - Connect several provider accounts, endpoints, deployments, and models at once.
 - Select the exact connection/model pair for each conversation.
 - Test a connection before relying on it, with useful diagnostics that do not expose keys.
@@ -48,7 +48,9 @@ Create a separate saved connection for every endpoint/key combination, including
 
 ## Privacy and routing
 
-Sessions, selected session, drafts, and sidebar state are stored in the browser’s IndexedDB. Provider requests are sent only to the endpoint selected for that session.
+Sessions, selected session, drafts, context summaries, and layout state are stored in a local file workspace. By default it is `data/sessions/`; change it from **Context → Data & context settings**. Each session is a separate private JSON file, with a workspace manifest and immutable compaction archives. The first-run **Import browser backup** action can copy legacy IndexedDB chats without clearing the browser data.
+
+Select the context button in the top bar to inspect the active prompt’s estimated tokens and words, stored versus archived history, output reserve, remaining model budget, and the most recent provider-measured usage. Estimates are deliberately labeled; provider usage is shown only when a provider reports it. Context compaction is explicit: Signal generates an editable continuity summary with the selected model, then archives the replaced raw turns only after your approval.
 
 An optional application proxy applies to provider tests and chat traffic and is persisted separately in Git-ignored `data/proxy.json`. On macOS, Signal can also change HTTP/HTTPS proxy settings for one chosen network service after explicit confirmation. That system-level control affects other applications and should be used deliberately.
 

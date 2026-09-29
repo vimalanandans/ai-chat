@@ -7,6 +7,30 @@ export interface ChatMessage {
   createdAt: string;
   state?: "streaming" | "error";
   localOnly?: boolean;
+  usage?: TokenUsage;
+}
+
+export interface TokenUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  source: "provider" | "estimate";
+}
+
+export type ContextHealth = "unknown" | "healthy" | "warning" | "critical" | "blocked";
+
+export interface ContextSummary {
+  id: string;
+  content: string;
+  createdAt: string;
+  sourceMessageIds: string[];
+  modelId: string;
+}
+
+export interface ContextPlan {
+  archivedMessageIds: string[];
+  summary?: ContextSummary;
+  timeline: Array<{ createdAt: string; activeTokens: number; storedTokens: number; reason: "message" | "compaction" | "model-change" }>;
 }
 
 export interface ChatSession {
@@ -17,6 +41,7 @@ export interface ChatSession {
   updatedAt: string;
   draft: string;
   messages: ChatMessage[];
+  context?: ContextPlan;
 }
 
 export interface ModelOption {
@@ -45,8 +70,49 @@ export interface ProxySettings {
 }
 
 export interface ChatStore {
-  version: 1;
+  version: 1 | 2;
   sessions: ChatSession[];
   activeSessionId: string;
   sidebarOpen: boolean;
+  contextPanelOpen?: boolean;
+  contextPanelWidth?: number;
+}
+
+export interface ModelProfile {
+  modelId: string;
+  contextWindow?: number;
+  maxInputTokens?: number;
+  maxOutputTokens?: number;
+  tokenizer: "approximate-words" | "provider";
+  capabilities: string[];
+  source: "override" | "provider" | "catalog" | "unknown";
+  refreshedAt?: string;
+  stale?: boolean;
+}
+
+export interface ContextSnapshot {
+  model: ModelProfile;
+  activeTokens: number;
+  activeWords: number;
+  storedTokens: number;
+  storedWords: number;
+  archivedTokens: number;
+  archivedWords: number;
+  reservedOutputTokens: number;
+  usablePromptTokens?: number;
+  remainingTokens?: number;
+  health: ContextHealth;
+  measuredUsage?: TokenUsage;
+}
+
+export interface WorkspaceSettings {
+  sessionDirectory: string;
+  reservedOutputTokens: number;
+  warningPercent: number;
+  criticalPercent: number;
+  catalogUrl: string;
+  catalogPublicKey: string;
+  modelOverrides: Record<string, Pick<ModelProfile, "contextWindow" | "maxInputTokens" | "maxOutputTokens">>;
+  metadataCache: Record<string, ModelProfile>;
+  migratedIndexedDb?: boolean;
 }

@@ -7,8 +7,9 @@ Signal is a local-first, single-user AI chat workspace. The UI runs in a browser
 ```mermaid
 flowchart LR
   Browser[Browser UI] -->|local API requests| Guard[Loopback boundary]
-  Browser <-->|sessions, drafts, layout| IDB[(IndexedDB)]
+  Browser <-->|migration backup only| IDB[(IndexedDB)]
   Guard --> Routes[Next.js route handlers]
+  Routes <-->|workspace manifest, sessions, archives| Workspace[(Configurable local files)]
   Routes <-->|provider records and proxy settings| Local[(Git-ignored local files)]
   Routes -->|provider-specific request| Providers[Configured LLM providers]
   Routes -->|optional explicit transport| AppProxy[Application proxy]
@@ -22,7 +23,9 @@ The server starts on `127.0.0.1`. Route handlers also reject requests whose host
 | Module | Responsibility |
 | --- | --- |
 | `src/app/page.tsx` | Session selection, model selection, composer, streaming UI, and safe error presentation. |
-| `src/features/chat/storage.ts` | Browser IndexedDB persistence for sessions, drafts, selected session, and sidebar state. |
+| `src/features/chat/workspace.ts` | Canonical private Unix workspace: settings, atomic manifest/session writes, relocation, and archives. |
+| `src/features/chat/context-engine.ts` | Model-aware active-prompt construction, conservative forecasts, reserve budgets, health states, and compaction proposals. |
+| `src/features/chat/context-panel.tsx` | Toggleable right-side inspector, settings, metadata refresh, and explicit reviewed compaction. |
 | `src/features/chat/stream-registry.ts` | Owns active abort controllers by session so concurrent streams cannot overwrite one another. |
 | `src/features/chat/runtime.ts` | Provider registry, key-safe summaries, atomic local persistence, request helpers, connection tests, and application-proxy transport. |
 | `src/features/chat/provider-settings.tsx` | Connection creation, testing, editing, and per-provider non-secret drafts. |
@@ -36,7 +39,8 @@ The server starts on `127.0.0.1`. Route handlers also reject requests whose host
 
 | Data | Owner and location | Secret? | Behavior |
 | --- | --- | --- | --- |
-| Sessions, messages, drafts, selected session, sidebar state | Browser IndexedDB | No provider key | Persists for the current browser profile; clearing browser data removes it. |
+| Sessions, messages, drafts, selected session, layout, context plan | Configurable local workspace | No provider key | `workspace.json`, separate `sessions/<id>.json`, and immutable `archives/<id>/` files are written atomically with private permissions. |
+| Legacy browser sessions | Browser IndexedDB | No provider key | Available only for explicit first-run import; importing leaves this backup intact. |
 | Provider connections | Git-ignored `data/providers.json` on the local server | Yes | Written atomically with owner-only file permissions; API responses omit keys. |
 | Application proxy setting | Git-ignored `data/proxy.json` on the local server | No | Persists independently from provider connections. |
 | Provider-form drafts | Browser local storage | No key | One non-secret draft per provider type. |
@@ -61,7 +65,13 @@ sequenceDiagram
   B->>B: Update only the owning session
 ```
 
-`StreamRegistry` gives every session its own abort controller. A response may keep streaming if the user opens another session; returning to the original session exposes its own Stop control. Releasing a completed stream only removes the controller it created, so it cannot clear a newer request.
+`StreamRegistry` gives every session its own abort controller. A response may keep streaming if the user opens another session; returning to the original session exposes its own Stop control. The chat route now emits typed SSE events for text deltas, measured provider usage when available, completion, and error state.
+
+## Context engine
+
+Before a chat request, the local server builds the active prompt from non-archived messages plus an approved continuity summary. It forecasts token usage conservatively, reserves the configured output budget, and blocks a send only when verified model limits would be exceeded. Models with unknown limits stay usable but visibly unverified.
+
+The metadata precedence is user override, authenticated provider metadata, verified signed catalog, then unknown. Gemini model metadata can provide input/output limits directly; other configured/custom deployments commonly require a signed catalog or an override. Catalog signature or network failures never replace the last verified cache.
 
 ## Provider adapter seam
 
