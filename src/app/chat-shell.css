@@ -153,15 +153,6 @@
     background: #fff;
   }
 
-  .context-panel .context-resize {
-    position: sticky;
-    bottom: -24px;
-    margin: 16px -15px -24px;
-    padding: 10px 15px;
-    border-top: 1px solid #e4e7ed;
-    background: rgba(255, 255, 255, .96);
-    backdrop-filter: blur(8px);
-  }
 }
 
 .session-menu {
