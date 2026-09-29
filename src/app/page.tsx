@@ -1,7 +1,7 @@
 "use client";
 
-import { CSSProperties, FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Check, ChevronDown, Command, Ellipsis, Menu, MessageSquarePlus, PanelLeftClose, PanelRightOpen, Plus, SendHorizontal, Settings2, Sparkles, X } from "lucide-react";
+import { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Bot, Check, ChevronDown, Command, Ellipsis, Menu, MessageSquarePlus, PanelLeftClose, PanelRightOpen, Pencil, Pin, Plus, SendHorizontal, Settings2, Sparkles, Trash2, X } from "lucide-react";
 import { ContextPanel } from "@/features/chat/context-panel";
 import { createEmptySession, createWelcomeSession } from "@/features/chat/demo";
 import { MarkdownMessage } from "@/features/chat/markdown-message";
@@ -26,6 +26,7 @@ export default function ChatPage() {
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>();
   const [browserBackup, setBrowserBackup] = useState<ChatStore>();
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [sessionMenu, setSessionMenu] = useState<{ id: string; x: number; y: number }>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<{ message: string; diagnostics?: ChatDiagnostics }>();
@@ -60,6 +61,17 @@ export default function ChatPage() {
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [active?.messages.length, lastMessageContent]);
   useEffect(() => { const element = composerRef.current; if (!element) return; element.style.height = "0px"; element.style.height = `${Math.min(element.scrollHeight, 160)}px`; }, [active?.draft]);
   useEffect(() => () => streams.clear(), [streams]);
+  useEffect(() => {
+    if (!sessionMenu) return;
+    const dismiss = (event: globalThis.PointerEvent | globalThis.KeyboardEvent) => {
+      if (event instanceof globalThis.KeyboardEvent && event.key !== "Escape") return;
+      if (event instanceof globalThis.PointerEvent && event.target instanceof Element && event.target.closest("[data-session-menu]")) return;
+      setSessionMenu(undefined);
+    };
+    window.addEventListener("pointerdown", dismiss);
+    window.addEventListener("keydown", dismiss);
+    return () => { window.removeEventListener("pointerdown", dismiss); window.removeEventListener("keydown", dismiss); };
+  }, [sessionMenu]);
   function updateSession(id: string, updater: (session: ChatSession) => ChatSession) { setSessions((items) => items.map((session) => session.id === id ? updater(session) : session)); }
   function newChat() { const session = createEmptySession(activeModel.id); setSessions((items) => [session, ...items]); setActiveId(session.id); setError(undefined); }
   function setModel(model: ModelOption) { if (!active || isStreaming) return; updateSession(active.id, (session) => ({ ...session, modelId: model.id, updatedAt: new Date().toISOString(), context: { archivedMessageIds: session.context?.archivedMessageIds || [], summary: session.context?.summary, timeline: [...(session.context?.timeline || []), { createdAt: new Date().toISOString(), activeTokens: session.context?.timeline.at(-1)?.activeTokens || 0, storedTokens: session.context?.timeline.at(-1)?.storedTokens || 0, reason: "model-change" }] } })); setModelMenuOpen(false); }
@@ -68,6 +80,21 @@ export default function ChatPage() {
     if (active && nextModels.length && !nextModels.some((model) => model.id === active.modelId)) updateSession(active.id, (session) => ({ ...session, modelId: nextModels[0].id, updatedAt: new Date().toISOString() }));
   }
   function updateDraft(value: string) { if (!active || isStreaming) return; updateSession(active.id, (session) => ({ ...session, draft: value })); }
+  function showSessionMenu(event: ReactMouseEvent<HTMLButtonElement>, id: string) { event.preventDefault(); setSessionMenu({ id, x: Math.min(event.clientX, window.innerWidth - 214), y: Math.min(event.clientY, window.innerHeight - 146) }); }
+  function renameSession(id: string) {
+    const current = sessions.find((session) => session.id === id); const title = current ? window.prompt("Rename session", current.title)?.trim() : "";
+    if (title) setSessions((items) => items.map((session) => session.id === id ? { ...session, title, updatedAt: new Date().toISOString() } : session));
+    setSessionMenu(undefined);
+  }
+  function moveSessionToTop(id: string) { setSessions((items) => { const selected = items.find((session) => session.id === id); return selected ? [selected, ...items.filter((session) => session.id !== id)] : items; }); setSessionMenu(undefined); }
+  function deleteSession(id: string) {
+    const current = sessions.find((session) => session.id === id);
+    if (!current || !window.confirm(`Delete “${current.title}”? This only removes the local session.`)) return;
+    const next = sessions.filter((session) => session.id !== id) || [];
+    if (next.length) { setSessions(next); if (activeId === id) setActiveId(next[0].id); }
+    else { const replacement = createEmptySession(activeModel.id); setSessions([replacement]); setActiveId(replacement.id); }
+    setSessionMenu(undefined);
+  }
 
   async function sendMessage(event?: FormEvent) {
     event?.preventDefault(); if (!active || isStreaming) return;
@@ -98,7 +125,14 @@ export default function ChatPage() {
   if (!hydrated || !active) return <main className="chat-loading"><span className="signal-mark"><i /></span><p>Opening your chat space…</p></main>;
 
   return <main className={`chat-app ${sidebarOpen ? "sidebar-visible" : ""} ${contextPanelOpen ? "context-panel-visible" : ""}`} style={{ "--context-panel-width": `${contextPanelWidth}px` } as CSSProperties}>
-    <aside className="chat-sidebar" aria-label="Chat sessions"><div className="sidebar-head"><div className="chat-brand"><span className="signal-mark"><i /></span><span>Signal</span></div><button className="plain-icon" onClick={() => setSidebarOpen(false)} aria-label="Close conversations"><PanelLeftClose size={18}/></button></div><button className="new-chat" onClick={newChat}><MessageSquarePlus size={17}/> New chat <kbd>⌘ N</kbd></button><div className="session-label">CONVERSATIONS</div><nav className="session-list">{sessions.map((session) => <button key={session.id} className={`session-item ${session.id === active.id ? "active" : ""}`} onClick={() => { setActiveId(session.id); setError(undefined); }}><span className="session-icon"><Bot size={14}/></span><span><b>{session.title}</b><small>{messagePreview(session)}</small></span><time>{formatDate(session.updatedAt)}</time></button>)}</nav><div className="sidebar-foot"><button onClick={() => setSettingsOpen(true)}><Settings2 size={16}/> Model connection</button><span><span className={activeModel.configured ? "live-dot" : "idle-dot"}/> {activeModel.configured ? "Ready" : "Setup needed"}</span></div></aside>
+    <aside className="chat-sidebar" aria-label="Chat sessions">
+      <div className="sidebar-head"><div className="chat-brand"><span className="signal-mark"><i /></span><span>Signal</span></div><button className="plain-icon" onClick={() => setSidebarOpen(false)} aria-label="Close conversations"><PanelLeftClose size={18}/></button></div>
+      <button className="new-chat" onClick={newChat}><MessageSquarePlus size={17}/> New chat <kbd>⌘ N</kbd></button>
+      <div className="session-label">CONVERSATIONS <span>{sessions.length}</span></div>
+      <nav className="session-list" aria-label="Session list">{sessions.map((session) => <button key={session.id} className={`session-item ${session.id === active.id ? "active" : ""}`} onClick={() => { setActiveId(session.id); setError(undefined); }} onContextMenu={(event) => showSessionMenu(event, session.id)}><span className="session-icon"><Bot size={14}/></span><span><b>{session.title}</b><small>{messagePreview(session)}</small></span><time>{formatDate(session.updatedAt)}</time></button>)}</nav>
+      <div className="sidebar-foot"><button onClick={() => setSettingsOpen(true)}><Settings2 size={16}/> Model connection</button><span><span className={activeModel.configured ? "live-dot" : "idle-dot"}/> {activeModel.configured ? "Ready" : "Setup needed"}</span></div>
+    </aside>
+    {sessionMenu && <div className="session-menu" data-session-menu role="menu" aria-label="Manage session" style={{ left: sessionMenu.x, top: sessionMenu.y }}><button role="menuitem" onClick={() => renameSession(sessionMenu.id)}><Pencil size={14}/> Rename</button><button role="menuitem" onClick={() => moveSessionToTop(sessionMenu.id)}><Pin size={14}/> Move to top</button><button className="danger" role="menuitem" onClick={() => deleteSession(sessionMenu.id)}><Trash2 size={14}/> Delete</button></div>}
     <section className="chat-main"><header className="chat-topbar"><div className="topbar-leading">{!sidebarOpen && <button className="plain-icon" onClick={() => setSidebarOpen(true)} aria-label="Open conversations"><Menu size={19}/></button>}<div><span className="crumb">PRIVATE SPACE</span><h1>{active.title}</h1></div></div><div className="topbar-actions"><button className="session-action" onClick={newChat}><Plus size={15}/> New chat</button><button className="plain-icon" onClick={() => setContextPanelOpen((open) => !open)} aria-label="Toggle context panel" aria-pressed={contextPanelOpen}><PanelRightOpen size={19}/></button><button className="plain-icon" aria-label="Conversation options"><Ellipsis size={19}/></button></div></header>
       {!activeModel.configured && <section className="setup-banner"><div><Sparkles size={17}/></div><p><b>Connect a model to start chatting.</b> Signal stores sessions locally and sends active prompt context only to your configured endpoint.</p><button onClick={() => setSettingsOpen(true)}>Set up model</button></section>}
       <div className="messages" aria-live="polite">{active.messages.length === 0 ? <Welcome onStart={() => document.getElementById("chat-composer")?.focus()} /> : active.messages.map((message) => <MessageBubble key={message.id} message={message} modelLabel={activeModel.label}/>) }<div ref={messagesEndRef}/></div>

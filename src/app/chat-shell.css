@@ -1,0 +1,226 @@
+/* Desktop application shell: persistent navigation, central conversation scroller, and utility drawers. */
+@media (min-width: 761px) {
+  .chat-app.chat-app {
+    color: #202534;
+    background: #f7f8fb;
+  }
+
+  .chat-sidebar.chat-sidebar {
+    padding: 16px 12px 12px;
+    border-right: 1px solid #dde1e8;
+    background: #fff;
+  }
+
+  .chat-sidebar .sidebar-head {
+    min-height: 42px;
+    padding: 0 4px 14px;
+    border-bottom: 1px solid #eef0f4;
+  }
+
+  .chat-sidebar .new-chat {
+    min-height: 40px;
+    margin-top: 14px;
+    border-radius: 9px;
+    box-shadow: none;
+  }
+
+  .chat-sidebar .session-label {
+    display: flex;
+    justify-content: space-between;
+    margin: 20px 8px 8px;
+    color: #687083;
+    letter-spacing: .1em;
+  }
+
+  .chat-sidebar .session-label span {
+    padding: 1px 6px;
+    border-radius: 999px;
+    color: #5b49b5;
+    background: #efedff;
+    letter-spacing: 0;
+  }
+
+  .chat-sidebar .session-list {
+    gap: 4px;
+    padding: 2px 0;
+  }
+
+  .chat-sidebar .session-item {
+    min-height: 56px;
+    padding: 9px 8px;
+    border: 1px solid transparent;
+    transition: background-color 180ms ease, border-color 180ms ease;
+  }
+
+  .chat-sidebar .session-item:hover {
+    border-color: #e5e3f4;
+    background: #f7f6ff;
+  }
+
+  .chat-sidebar .session-item.active {
+    border-color: #d9d4f8;
+    background: #f0eeff;
+  }
+
+  .chat-sidebar .session-item.active::before {
+    position: absolute;
+    top: 13px;
+    left: -1px;
+    width: 3px;
+    height: 30px;
+    border-radius: 0 3px 3px 0;
+    content: "";
+    background: #6954d6;
+  }
+
+  .chat-sidebar .session-item b {
+    font-size: 12px;
+  }
+
+  .chat-sidebar .session-item small,
+  .chat-sidebar .session-item time {
+    font-size: 10px;
+  }
+
+  .chat-sidebar .sidebar-foot {
+    padding: 12px 4px 2px;
+    background: #fff;
+  }
+
+  .chat-main.chat-main {
+    background: #f9fafc;
+  }
+
+  .chat-main .chat-topbar.chat-topbar {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 64px;
+    height: 64px;
+    padding: 0 28px;
+    border-bottom-color: #e4e7ed;
+    background: rgba(255, 255, 255, .94);
+  }
+
+  .chat-main .messages.messages {
+    width: 100%;
+    max-width: 880px;
+    padding: 34px 32px 28px;
+    scrollbar-gutter: stable;
+  }
+
+  .chat-main .message {
+    margin-bottom: 30px;
+  }
+
+  .chat-main .message p,
+  .chat-main .markdown-content {
+    font-size: 15px;
+    line-height: 1.68;
+  }
+
+  .chat-app .chat-main .composer.composer {
+    position: relative;
+    z-index: 2;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    flex: 0 0 auto;
+    margin-left: 0;
+    padding: 12px 28px 9px;
+    border-top: 1px solid #e4e7ed;
+    background: #fff;
+  }
+
+  .chat-main .composer > * {
+    max-width: 880px;
+  }
+
+  .chat-main .composer-input {
+    min-height: 52px;
+    border-color: #d9dce5;
+    box-shadow: 0 5px 16px rgba(32, 37, 52, .06);
+  }
+
+  .chat-main .composer-foot {
+    min-height: 23px;
+    padding: 6px 7px 0;
+    color: #697182;
+    font-size: 10px;
+  }
+
+  .context-panel.context-panel {
+    border-left-color: #dfe3ea;
+    background: #fff;
+  }
+
+  .context-panel .context-resize {
+    position: sticky;
+    bottom: -24px;
+    margin: 16px -15px -24px;
+    padding: 10px 15px;
+    border-top: 1px solid #e4e7ed;
+    background: rgba(255, 255, 255, .96);
+    backdrop-filter: blur(8px);
+  }
+}
+
+.session-menu {
+  position: fixed;
+  z-index: 19;
+  display: grid;
+  min-width: 198px;
+  padding: 5px;
+  border: 1px solid #dfe2e9;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(24, 29, 42, .18);
+}
+
+.session-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 7px;
+  color: #303747;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.session-menu button:hover,
+.session-menu button:focus-visible {
+  outline: 0;
+  background: #f2f0ff;
+}
+
+.session-menu button.danger {
+  color: #ae4555;
+}
+
+.session-menu button.danger:hover,
+.session-menu button.danger:focus-visible {
+  background: #fff1f3;
+}
+
+@media (max-width: 760px) {
+  .chat-app.sidebar-visible.context-panel-visible .chat-sidebar {
+    display: none;
+  }
+
+  .session-menu {
+    right: 12px;
+    bottom: 12px;
+    left: auto !important;
+    top: auto !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-sidebar .session-item {
+    transition: none;
+  }
+}
