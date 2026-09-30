@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./context-panel.css";
 @import "./chat-shell.css";
+@import "./workspace-ux.css";
 @import "./settings-hub.css";
 
 :root { --ink:#202534; --quiet:#747b8d; --line:#e7e8ed; --violet:#6954d6; --violet-dark:#543fba; --violet-wash:#f0edff; --danger:#c45464; }
