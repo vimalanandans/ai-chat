@@ -10,7 +10,7 @@ All JSON errors use `{ "error": "…" }`; provider test and chat errors may also
 
 ### `POST /api/chat`
 
-Streams typed server-sent events from the selected saved provider/model and the server-built active session context.
+The request contains only `{ "sessionId": "local-session-id" }`. The server loads the saved session, its selected model, and active text context; it does not accept client-supplied provider credentials or attachment bytes. The model cannot read locally attached files. The SSE response emits `delta` events with `{ "text": "…" }`, optional `usage`, and `complete`; failures include a sanitized `error` and optional `diagnostics`.
 
 ```json
 {
@@ -18,21 +18,25 @@ Streams typed server-sent events from the selected saved provider/model and the 
 }
 ```
 
-The server loads the canonical local session, plans its active context, and rejects sends above a verified usable budget. A successful response is an SSE stream with `delta`, optional `usage`, and `complete` events. A provider failure includes safe diagnostics with provider type, model/deployment, endpoint, HTTP status, reason, API version when relevant, and route.
+The server rejects sends above a verified usable budget. Provider failures include safe diagnostics with provider type, model/deployment, endpoint, HTTP status, reason, API version when relevant, and route.
 
 ## Workspace and context
 
 ### `GET`, `PUT`, `PATCH /api/workspace`
 
-Reads or saves the canonical workspace, and updates settings such as the absolute session directory, attachment directory and size limit, read-only tool policy, output reserve, thresholds, catalog URL/key, and model overrides. Saving validates private local directories and preserves the existing workspace during relocation. Session data is never returned by provider routes.
+`GET` returns `{ "workspace": ChatStore | null, "settings": WorkspaceSettings }`. `PUT` accepts a complete `ChatStore` and returns `{ "workspace": ChatStore }`; it persists canonical sessions. `PATCH` accepts a partial `WorkspaceSettings` and returns `{ "settings": WorkspaceSettings }`. Invalid updates return `400`.
+
+Settings include the absolute session directory, attachment directory and size limit, read-only tool policy, output reserve, thresholds, catalog URL/key, and model overrides. Saving validates private local directories and preserves the existing workspace during relocation. Session data is never returned by provider routes.
 
 ### `POST /api/attachments`
 
-Accepts loopback-only multipart form data with `sessionId` and `file`. Signal verifies the target session, size, safe name, and image/PDF magic bytes (or valid UTF-8 text) before storing the file below that session’s configured private attachment directory. The response returns safe attachment metadata; it never exposes a filesystem path.
+Returns `{ "attachment": Attachment }` with safe metadata, never a filesystem path. A missing session returns `404`; invalid form data or files return `400`. Storage does not enable model-side file reading.
+
+Accepts loopback-only multipart form data with `sessionId` and `file`. Signal verifies the target session, size, safe name, and image/PDF magic bytes (or valid UTF-8 text) before storing the file below that session’s configured private attachment directory.
 
 ### `GET`, `POST /api/context`
 
-`GET` returns a session context snapshot. `POST` refreshes supported model metadata, proposes/generates a compaction summary, or applies an approved compaction and writes its raw-turn archive.
+`GET /api/context?sessionId={id}` returns `{ "snapshot": ContextSnapshot }`. `POST` accepts a `sessionId` and optional `action`: `propose` returns `snapshot` and proposed `messageIds`; `generate` also returns a provider-generated `summary`; `apply` requires an edited `summary` and `messageIds` and returns the updated `session` after archiving selected raw turns. `{ "action": "refresh" }` needs no session and returns `metadataCache`, `refreshedModelIds`, and `warnings`; it may contact configured providers or a signed catalog. With no action, `POST` returns `snapshot` and active text `messages`.
 
 ### `GET /api/models`
 

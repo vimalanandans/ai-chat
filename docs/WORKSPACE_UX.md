@@ -6,7 +6,7 @@ This iteration takes the strongest ideas from the [AionUi research](../document/
 
 | Surface | User question | Interaction |
 | --- | --- | --- |
-| Workspace overview | What can I do or resume? | Start a blank conversation, choose a starter, open a recent conversation, review previously attached files, or connect a model. |
+| Workspace overview | What can I do or resume? | Start a blank conversation, choose a starter, open a recent conversation, find conversations with attached files, or connect a model. |
 | Conversation list | Where was that work? | Search titles and short message previews; open a saved conversation. |
 | Conversation scope | What context am I using? | See the selected model, number of prompts, and number of local files; open activity. |
 | Activity | What happened in this conversation? | Read a chronological list of sent prompts, model responses, interruptions, and file counts. |
@@ -17,7 +17,7 @@ This iteration takes the strongest ideas from the [AionUi research](../document/
 
 1. **First use:** The overview shows the connection state. With no configured model, the user opens Models & connections. After setup, they start a blank conversation or pick a starter. A starter creates a new local conversation with an editable draft; it does not send automatically.
 2. **Continue work:** The user opens a recent item from the overview or finds it in the sidebar. Its saved model, messages, draft, and attachments remain with that conversation. The scope strip and activity panel make the current context visible.
-3. **Use a file:** The user attaches a supported local file in the composer. Once included in a sent prompt, its name appears in the message and the overview's Files in conversations list links back to that conversation. The file list is a way to find context, not a separate file editor.
+3. **Use a file:** The user attaches a supported local file in the composer. Once included in a sent message, its name appears in the message and the overview's Files in conversations list links back to that conversation. The file list is a navigation aid, not a file editor. Attachment bytes remain local and are not delivered to the model; the chat request contains text only.
 4. **Review or recover:** The activity panel shows the order and state of messages. The context drawer retains the existing usage and compaction controls. Stopping a response is handled by the existing stream registry.
 
 ## Design choices

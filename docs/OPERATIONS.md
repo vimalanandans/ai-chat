@@ -35,7 +35,7 @@ Never print or commit proxy credentials, environment values, or shell history co
 ## Data handling and recovery
 
 - Back up the configured session workspace (the manifest, `sessions/`, and `archives/`) if chat history needs to survive device migration. Files contain chat content and are created with private permissions; use an encrypted, access-controlled backup.
-- Browser IndexedDB is only a legacy import source after this release. Do not clear it until an explicit import has been verified.
+- Browser IndexedDB is an optional cache and legacy import source, not the canonical workspace. Do not clear it until an explicit import has been verified.
 - Back up `data/providers.json` only through an encrypted, access-controlled mechanism; it contains provider keys.
 - Do not commit `data/`, `.env.local`, browser-storage exports, or diagnostic logs that could contain sensitive content.
 - Deleting a provider connection does not delete browser chat history. Clearing browser data does not delete server-side provider connections.
@@ -66,4 +66,4 @@ For a material user-visible change:
 
 ## Current operating boundary
 
-Signal is not a production hosted service. It does not provide remote authentication, rate limits, cloud synchronization, audited secrets management, or CI. Do not make it network-accessible without designing and implementing those capabilities first.
+Signal is not a production hosted service. It does not provide remote authentication, rate limits, cloud synchronization, or audited secrets management. Documentation consistency checks run in CI; that does not make the app safe to expose on a network. Do not make it network-accessible without designing and implementing those capabilities first.

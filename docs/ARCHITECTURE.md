@@ -7,7 +7,7 @@ Signal is a local-first, single-user AI chat workspace. The UI runs in a browser
 ```mermaid
 flowchart LR
   Browser[Browser UI] -->|local API requests| Guard[Loopback boundary]
-  Browser <-->|migration backup only| IDB[(IndexedDB)]
+  Browser <-->|optional cache and legacy import| IDB[(IndexedDB)]
   Guard --> Routes[Next.js route handlers]
   Routes <-->|workspace manifest, sessions, archives| Workspace[(Configurable local files)]
   Routes <-->|provider records and proxy settings| Local[(Git-ignored local files)]
@@ -22,7 +22,7 @@ The server starts on `127.0.0.1`. Route handlers also reject requests whose host
 
 | Module | Responsibility |
 | --- | --- |
-| `src/app/page.tsx` | Session selection, model selection, composer, streaming UI, session menu/rename dialog, and safe error presentation. |
+| `src/app/page.tsx` | Workspace overview, conversation search, scope/activity surfaces, session and model selection, composer, streaming UI, and session menu. |
 | `src/features/chat/settings-hub.tsx` | Focused Settings Hub navigation, compact/full-window preference, context, attachment, and tool-policy forms. |
 | `src/features/chat/workspace.ts` | Canonical private Unix workspace: settings, atomic manifest/session writes, relocation, and archives. |
 | `src/features/chat/context-engine.ts` | Model-aware active-prompt construction, conservative forecasts, reserve budgets, health states, and compaction proposals. |
@@ -41,7 +41,7 @@ The server starts on `127.0.0.1`. Route handlers also reject requests whose host
 | Data | Owner and location | Secret? | Behavior |
 | --- | --- | --- | --- |
 | Sessions, messages, drafts, selected session, layout, context plan | Configurable local workspace | No provider key | `workspace.json`, separate `sessions/<id>.json`, and immutable `archives/<id>/` files are written atomically with private permissions. |
-| Legacy browser sessions | Browser IndexedDB | No provider key | Available only for explicit first-run import; importing leaves this backup intact. |
+| Browser copy of sessions | Browser IndexedDB | No provider key | An optional cache and explicit first-run import source. The server workspace remains canonical; importing leaves the browser copy intact. |
 | Provider connections | Git-ignored `data/providers.json` on the local server | Yes | Written atomically with owner-only file permissions; API responses omit keys. |
 | Application proxy setting | Git-ignored `data/proxy.json` on the local server | No | Persists independently from provider connections. |
 | Provider-form drafts | Browser local storage | No key | One non-secret draft per provider type. |
@@ -58,16 +58,18 @@ sequenceDiagram
   participant R as Local route
   participant P as Provider
   U->>B: Send message
-  B->>B: Persist user message and streaming placeholder
-  B->>R: POST /api/chat (chosen model + messages)
-  R->>R: Enforce loopback; resolve saved connection
+  B->>R: PUT /api/workspace (session with user message)
+  B->>R: POST /api/chat (sessionId)
+  R->>R: Enforce loopback; load session, model, and active text context
   R->>P: Send protocol-specific streaming request
   P-->>R: Provider events
-  R-->>B: UTF-8 text stream
+  R-->>B: Typed SSE events
   B->>B: Update only the owning session
 ```
 
 `StreamRegistry` gives every session its own abort controller. A response may keep streaming if the user opens another session; returning to the original session exposes its own Stop control. The chat route now emits typed SSE events for text deltas, measured provider usage when available, completion, and error state.
+
+Attachments are stored and referenced locally, but provider adapters receive message text only. File bytes are not included in the active prompt or provider request.
 
 ## Context engine
 

@@ -16,7 +16,7 @@ Signal gives a single person a dependable local place to think with AI: conversa
 | --- | --- |
 | Calm by default | The composer and current conversation are central; all configuration sits in one focused Settings Hub. |
 | Explicit model choice | Every session has an exact saved connection/model pair rather than an ambiguous provider default. |
-| Local ownership | Browser data stays in the browser; provider keys remain on the local server. |
+| Local ownership | Conversations are saved in a private local server workspace; provider keys remain in separate local server files. |
 | Test before trust | Connections can be tested before saving, with safe diagnostics when a provider rejects a request. |
 | Safe rendering | Model output supports useful Markdown while raw HTML and automatic remote images are not rendered. |
 | Reversible attention | A streaming response can be stopped from the session that owns it, even while another session is open. |
@@ -25,13 +25,14 @@ Signal gives a single person a dependable local place to think with AI: conversa
 
 ```mermaid
 flowchart LR
-  Connect[Add and test a connection] --> Choose[Choose a model for a chat]
+  Connect[Add and test a connection] --> Overview[Open the workspace overview]
+  Overview --> Choose[Start or resume a chat and choose a model]
   Choose --> Converse[Send prompts and read streamed answers]
   Converse --> Branch[Start or return to another session]
   Branch --> Choose
 ```
 
-The first connection is the only required setup. Once it is saved, creating a fresh chat is lightweight: it starts with the active model and an empty context. Existing chats continue to use their own selected models.
+The first connection is the only required setup for a model response. The overview offers blank chats, editable starter drafts, and recent conversations. A fresh chat starts with the active model and an empty context. Existing chats continue to use their own selected models.
 
 ## Current boundaries
 
